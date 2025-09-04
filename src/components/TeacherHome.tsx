@@ -5,7 +5,11 @@ import { Plus, Users, Calendar, TrendingUp, Bell, QrCode, Clock } from "lucide-r
 import { StatsCard } from "./StatsCard";
 import { ClassCard } from "./ClassCard";
 
-export const TeacherHome = () => {
+interface TeacherHomeProps {
+  onClassSelect?: (classId: string) => void;
+}
+
+export const TeacherHome = ({ onClassSelect }: TeacherHomeProps) => {
   const upcomingEvents = [
     { id: 1, title: "CS101 Midterm Exam", time: "2:00 PM", type: "exam" },
     { id: 2, title: "Physics Lab Session", time: "4:00 PM", type: "class" },
@@ -102,7 +106,11 @@ export const TeacherHome = () => {
           </div>
           <div className="space-y-3">
             {recentClasses.map((classItem) => (
-              <ClassCard key={classItem.id} {...classItem} />
+              <ClassCard 
+                key={classItem.id} 
+                {...classItem} 
+                onClick={() => onClassSelect?.(classItem.id.toString())}
+              />
             ))}
           </div>
         </div>

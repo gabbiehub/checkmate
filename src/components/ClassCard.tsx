@@ -9,9 +9,10 @@ interface ClassCardProps {
   code: string;
   students: number;
   attendance: number;
+  onClick?: () => void;
 }
 
-export const ClassCard = ({ name, code, students, attendance }: ClassCardProps) => {
+export const ClassCard = ({ name, code, students, attendance, onClick }: ClassCardProps) => {
   const getAttendanceColor = (percentage: number) => {
     if (percentage >= 90) return "bg-green-500";
     if (percentage >= 80) return "bg-yellow-500";
@@ -19,7 +20,7 @@ export const ClassCard = ({ name, code, students, attendance }: ClassCardProps) 
   };
 
   return (
-    <Card className="p-4 shadow-card hover:shadow-soft transition-shadow">
+    <Card className="p-4 shadow-card hover:shadow-soft transition-shadow cursor-pointer" onClick={onClick}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <h3 className="font-semibold text-foreground mb-1">{name}</h3>
