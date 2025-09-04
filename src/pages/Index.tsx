@@ -1,12 +1,39 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { TeacherHome } from "@/components/TeacherHome";
+import { BottomNav } from "@/components/BottomNav";
+import { useState } from "react";
 
 const Index = () => {
+  const [activeTab, setActiveTab] = useState("home");
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case "home":
+        return <TeacherHome />;
+      case "classes":
+        return <div className="min-h-screen bg-background flex items-center justify-center pb-20">
+          <p className="text-muted-foreground">Classes view coming soon...</p>
+        </div>;
+      case "calendar":
+        return <div className="min-h-screen bg-background flex items-center justify-center pb-20">
+          <p className="text-muted-foreground">Calendar view coming soon...</p>
+        </div>;
+      case "analytics":
+        return <div className="min-h-screen bg-background flex items-center justify-center pb-20">
+          <p className="text-muted-foreground">Analytics view coming soon...</p>
+        </div>;
+      case "profile":
+        return <div className="min-h-screen bg-background flex items-center justify-center pb-20">
+          <p className="text-muted-foreground">Profile view coming soon...</p>
+        </div>;
+      default:
+        return <TeacherHome />;
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="relative">
+      {renderContent()}
+      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 };
