@@ -7,9 +7,10 @@ import { ClassCard } from "./ClassCard";
 
 interface TeacherHomeProps {
   onClassSelect?: (classId: string) => void;
+  onNewClass?: () => void;
 }
 
-export const TeacherHome = ({ onClassSelect }: TeacherHomeProps) => {
+export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => {
   const upcomingEvents = [
     { id: 1, title: "CS101 Midterm Exam", time: "2:00 PM", type: "exam" },
     { id: 2, title: "Physics Lab Session", time: "4:00 PM", type: "class" },
@@ -38,7 +39,7 @@ export const TeacherHome = ({ onClassSelect }: TeacherHomeProps) => {
 
         {/* Quick Actions */}
         <div className="flex gap-3 mb-6">
-          <Button variant="secondary" className="flex-1 h-12">
+          <Button variant="secondary" className="flex-1 h-12" onClick={onNewClass}>
             <Plus className="w-4 h-4 mr-2" />
             New Class
           </Button>
