@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Users, MapPin, Clock, BookOpen, Hash } from "lucide-react";
+import { ArrowLeft, Save, Users, MapPin, Clock, BookOpen, Hash, Layout } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { SeatPlanBuilder } from "./SeatPlanBuilder";
 
 interface NewClassFormProps {
   onBack: () => void;
@@ -25,6 +26,8 @@ export const NewClassForm = ({ onBack, onClassCreated }: NewClassFormProps) => {
     capacity: "",
     description: ""
   });
+  
+  const [seatPlan, setSeatPlan] = useState<{ rows: number; columns: number; layout: string[][] } | null>(null);
 
   const generateClassCode = () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -45,9 +48,11 @@ export const NewClassForm = ({ onBack, onClassCreated }: NewClassFormProps) => {
     // Generate class code if not provided
     const finalCode = formData.code || Math.random().toString(36).substring(2, 8).toUpperCase();
     
+    const seatCount = seatPlan ? seatPlan.rows * seatPlan.columns : 0;
+    
     toast({
       title: "Class Created Successfully!",
-      description: `${formData.name} has been created with code ${finalCode}`,
+      description: `${formData.name} has been created with code ${finalCode} and ${seatCount} seats`,
     });
 
     // Navigate to the newly created class view
@@ -178,6 +183,16 @@ export const NewClassForm = ({ onBack, onClassCreated }: NewClassFormProps) => {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Seat Plan Builder */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Layout className="w-5 h-5 text-primary" />
+                <h2 className="text-lg font-semibold text-foreground">Classroom Layout</h2>
+              </div>
+              
+              <SeatPlanBuilder onSeatPlanChange={setSeatPlan} />
             </div>
 
             {/* Description */}
