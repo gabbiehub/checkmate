@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Users, Calendar, TrendingUp, Bell, QrCode, Clock } from "lucide-react";
 import { StatsCard } from "./StatsCard";
 import { ClassCard } from "./ClassCard";
+import { QRCodeDialog } from "./QRCodeDialog";
 
 interface TeacherHomeProps {
   onClassSelect?: (classId: string) => void;
@@ -11,6 +13,7 @@ interface TeacherHomeProps {
 }
 
 export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => {
+  const [showQRCode, setShowQRCode] = useState(false);
   const upcomingEvents = [
     { id: 1, title: "CS101 Midterm Exam", time: "2:00 PM", type: "exam" },
     { id: 2, title: "Physics Lab Session", time: "4:00 PM", type: "class" },
@@ -132,6 +135,12 @@ export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => 
             <Badge variant="outline" className="text-xs">Due Tomorrow</Badge>
           </div>
         </Card>
+        
+        <QRCodeDialog 
+          open={showQRCode} 
+          onOpenChange={setShowQRCode}
+          classData={{ name: "Math 101 - Algebra", code: "MATH101" }}
+        />
       </div>
     </div>
   );

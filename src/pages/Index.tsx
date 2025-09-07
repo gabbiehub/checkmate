@@ -1,16 +1,27 @@
 import { TeacherHome } from "@/components/TeacherHome";
+import { StudentHome } from "@/components/StudentHome";
 import { ClassView } from "@/components/ClassView";
+import { StudentClassView } from "@/components/StudentClassView";
 import { NewClassForm } from "@/components/NewClassForm";
 import { CalendarView } from "@/components/CalendarView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { ProfileView } from "@/components/ProfileView";
 import { BottomNav } from "@/components/BottomNav";
+import { AuthPage } from "@/components/AuthPage";
+import { JoinClassDialog } from "@/components/JoinClassDialog";
+import { AddEventDialog } from "@/components/AddEventDialog";
+import { ClassSettingsDialog } from "@/components/ClassSettingsDialog";
 import { useState } from "react";
 
 const Index = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userType, setUserType] = useState<'teacher' | 'student'>('teacher');
   const [activeTab, setActiveTab] = useState("home");
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [showNewClassForm, setShowNewClassForm] = useState(false);
+  const [showJoinClass, setShowJoinClass] = useState(false);
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showClassSettings, setShowClassSettings] = useState(false);
 
   const handleClassSelect = (classId: string) => {
     setSelectedClass(classId);
@@ -43,12 +54,16 @@ const Index = () => {
     }
 
     if (selectedClass) {
-      return <ClassView classId={selectedClass} onBack={handleBackToHome} />;
+      return userType === 'teacher' 
+        ? <ClassView classId={selectedClass} onBack={handleBackToHome} />
+        : <StudentClassView classId={selectedClass} onBack={handleBackToHome} />;
     }
 
     switch (activeTab) {
       case "home":
-        return <TeacherHome onClassSelect={handleClassSelect} onNewClass={handleNewClass} />;
+        return userType === 'teacher' 
+          ? <TeacherHome onClassSelect={handleClassSelect} onNewClass={handleNewClass} />
+          : <StudentHome onClassSelect={handleClassSelect} onJoinClass={() => setShowJoinClass(true)} />;
       case "classes":
         return <div className="min-h-screen bg-background flex items-center justify-center pb-20">
           <p className="text-muted-foreground">Classes view coming soon...</p>
@@ -58,16 +73,37 @@ const Index = () => {
       case "analytics":
         return <AnalyticsView />;
       case "profile":
-        return <ProfileView />;
+        return <ProfileView onSignOut={() => setIsAuthenticated(false)} />;
       default:
-        return <TeacherHome onClassSelect={handleClassSelect} onNewClass={handleNewClass} />;
+        return userType === 'teacher' 
+          ? <TeacherHome onClassSelect={handleClassSelect} onNewClass={handleNewClass} />
+          : <StudentHome onClassSelect={handleClassSelect} onJoinClass={() => setShowJoinClass(true)} />;
     }
   };
+
+  if (!isAuthenticated) {
+    return <AuthPage onLogin={(type) => { setUserType(type); setIsAuthenticated(true); }} />;
+  }
 
   return (
     <div className="relative">
       {renderContent()}
       {!selectedClass && !showNewClassForm && <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
+      
+      <JoinClassDialog 
+        open={showJoinClass} 
+        onOpenChange={setShowJoinClass}
+        onClassJoined={handleClassSelect}
+      />
+      <AddEventDialog 
+        open={showAddEvent} 
+        onOpenChange={setShowAddEvent}
+      />
+      <ClassSettingsDialog 
+        open={showClassSettings} 
+        onOpenChange={setShowClassSettings}
+        classId={selectedClass || ""}
+      />
     </div>
   );
 };

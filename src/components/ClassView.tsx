@@ -18,6 +18,8 @@ import {
 import { SeatingChart } from "./SeatingChart";
 import { StudentList } from "./StudentList";
 import { ClassAnalytics } from "./ClassAnalytics";
+import { ClassSettingsDialog } from "./ClassSettingsDialog";
+import { QRCodeDialog } from "./QRCodeDialog";
 
 interface ClassViewProps {
   classId: string;
@@ -26,6 +28,8 @@ interface ClassViewProps {
 
 export const ClassView = ({ classId, onBack }: ClassViewProps) => {
   const [activeTab, setActiveTab] = useState("seating");
+  const [showSettings, setShowSettings] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
   
   // Mock class data
   const classData = {
@@ -67,7 +71,12 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
               {classData.code} • {classData.schedule}
             </p>
           </div>
-          <Button variant="ghost" size="sm" className="text-primary-foreground hover:bg-white/10 p-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-primary-foreground hover:bg-white/10 p-2"
+            onClick={() => setShowSettings(true)}
+          >
             <Settings className="w-5 h-5" />
           </Button>
         </div>
@@ -104,7 +113,10 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
       {/* Quick Actions */}
       <div className="px-6 -mt-3 mb-6">
         <div className="flex gap-3">
-          <Button className="flex-1 bg-card shadow-card hover:shadow-soft">
+          <Button 
+            className="flex-1 bg-card shadow-card hover:shadow-soft"
+            onClick={() => setShowQRCode(true)}
+          >
             <QrCode className="w-4 h-4 mr-2" />
             Show Class Code
           </Button>
@@ -152,6 +164,17 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
           </TabsContent>
         </Tabs>
       </div>
+      
+      <ClassSettingsDialog 
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        classId={classId}
+      />
+      <QRCodeDialog 
+        open={showQRCode}
+        onOpenChange={setShowQRCode}
+        classData={{ name: classData.name, code: classData.code }}
+      />
     </div>
   );
 };

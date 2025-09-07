@@ -20,8 +20,15 @@ import {
   Edit3,
   Camera
 } from "lucide-react";
+import { EditProfileDialog } from "@/components/EditProfileDialog";
+import { useState } from "react";
 
-export const ProfileView = () => {
+interface ProfileViewProps {
+  onSignOut?: () => void;
+}
+
+export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const profileData = {
     name: "Prof. John Smith",
     email: "john.smith@university.edu",
@@ -168,7 +175,11 @@ export const ProfileView = () => {
           
           <Separator className="my-4" />
           
-          <Button variant="outline" className="w-full justify-start h-12 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">
+          <Button 
+            variant="outline" 
+            className="w-full justify-start h-12 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={onSignOut}
+          >
             <LogOut className="w-4 h-4 mr-3" />
             Sign Out
           </Button>
@@ -178,6 +189,11 @@ export const ProfileView = () => {
         <div className="text-center text-sm text-muted-foreground py-4">
           CheckMate v1.0.0
         </div>
+        
+        <EditProfileDialog 
+          open={showEditProfile} 
+          onOpenChange={setShowEditProfile} 
+        />
       </div>
     </div>
   );
