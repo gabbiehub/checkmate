@@ -6,6 +6,7 @@ import { NewClassForm } from "@/components/NewClassForm";
 import { CalendarView } from "@/components/CalendarView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { ProfileView } from "@/components/ProfileView";
+import { ClassesView } from "@/components/ClassesView";
 import { BottomNav } from "@/components/BottomNav";
 import { AuthPage } from "@/components/AuthPage";
 import { JoinClassDialog } from "@/components/JoinClassDialog";
@@ -65,9 +66,12 @@ const Index = () => {
           ? <TeacherHome onClassSelect={handleClassSelect} onNewClass={handleNewClass} />
           : <StudentHome onClassSelect={handleClassSelect} onJoinClass={() => setShowJoinClass(true)} />;
       case "classes":
-        return <div className="min-h-screen bg-background flex items-center justify-center pb-20">
-          <p className="text-muted-foreground">Classes view coming soon...</p>
-        </div>;
+        return <ClassesView 
+          userType={userType}
+          onClassSelect={handleClassSelect}
+          onNewClass={handleNewClass}
+          onJoinClass={() => setShowJoinClass(true)}
+        />;
       case "calendar":
         return <CalendarView />;
       case "analytics":
