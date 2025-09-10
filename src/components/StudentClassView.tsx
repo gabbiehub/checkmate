@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Calendar, Users, TrendingUp, Clock, MapPin, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, Calendar, Users, TrendingUp, Clock, MapPin, CheckCircle, XCircle, AlertCircle, Armchair } from "lucide-react";
+import { StudentSeatingChart } from "./StudentSeatingChart";
 
 interface StudentClassViewProps {
   classId: string;
@@ -25,7 +26,9 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
     totalClasses: 24,
     present: 22,
     late: 2,
-    absent: 0
+    absent: 0,
+    mySeatPosition: { row: 2, col: 3 }, // Student is in 3rd row, 4th column (0-indexed)
+    myStudentName: "Alex Rivera"
   };
 
   const attendanceHistory = [
@@ -145,8 +148,9 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="seating">My Seat</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
           
@@ -192,6 +196,45 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
                 <Progress value={classData.myAttendance} />
               </CardContent>
             </Card>
+          </TabsContent>
+          
+          <TabsContent value="seating" className="space-y-4">
+            {/* My Seat Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Armchair className="w-5 h-5" />
+                  My Assigned Seat
+                </CardTitle>
+                <CardDescription>
+                  Your seat location in the classroom
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="text-center p-3 bg-primary/5 rounded-lg border">
+                    <p className="text-sm text-muted-foreground">Row</p>
+                    <p className="text-2xl font-bold text-primary">{classData.mySeatPosition.row + 1}</p>
+                  </div>
+                  <div className="text-center p-3 bg-primary/5 rounded-lg border">
+                    <p className="text-sm text-muted-foreground">Column</p>
+                    <p className="text-2xl font-bold text-primary">{classData.mySeatPosition.col + 1}</p>
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-accent/20 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Your seat is highlighted in the seating chart below</p>
+                  <Badge className="mt-2 bg-primary text-primary-foreground">
+                    Row {classData.mySeatPosition.row + 1}, Column {classData.mySeatPosition.col + 1}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Classroom Seating Chart */}
+            <StudentSeatingChart 
+              studentName={classData.myStudentName}
+              seatPosition={classData.mySeatPosition}
+            />
           </TabsContent>
           
           <TabsContent value="history" className="space-y-4">
