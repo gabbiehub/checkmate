@@ -3,31 +3,76 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { User, UserCheck, UserX, Clock } from "lucide-react";
+import { User, UserCheck, UserX, Clock, Settings } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type AttendanceStatus = "present" | "late" | "absent" | "empty";
+
+type DisplayMode = 
+  | "full-name" 
+  | "first-name" 
+  | "last-name" 
+  | "nickname" 
+  | "picture" 
+  | "first-name-picture"
+  | "last-name-picture" 
+  | "nickname-picture"
+  | "full-name-picture"
+  | "student-id"
+  | "student-id-picture";
 
 interface Seat {
   id: string;
   studentName?: string;
   studentId?: string;
+  nickname?: string;
+  avatar?: string;
   status: AttendanceStatus;
   row: number;
   col: number;
 }
 
 export const SeatingChart = () => {
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("full-name");
   const [seats, setSeats] = useState<Seat[]>(() => {
     // Initialize a 6x8 seating arrangement
     const initialSeats: Seat[] = [];
     const students = [
-      "Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Lee", "Eva Martinez",
-      "Frank Wilson", "Grace Chen", "Henry Davis", "Ivy Taylor", "Jack Miller",
-      "Kate Anderson", "Leo Garcia", "Maya Patel", "Noah Kim", "Olivia White",
-      "Paul Jones", "Quinn Roberts", "Ruby Clark", "Sam Thompson", "Tina Liu",
-      "Uma Singh", "Victor Cruz", "Wendy Adams", "Xander Green", "Yara Hassan",
-      "Zoe Cooper", "Alex Rivera", "Blake Foster", "Cleo Park", "Drew Wong",
-      "Ella Stone", "Felix Burke", "Gina Ross", "Hugo Martinez", "Iris Coleman"
+      { name: "Alice Johnson", nickname: "Ali", avatar: "👩‍💼" },
+      { name: "Bob Smith", nickname: "Bobby", avatar: "👨‍💻" },
+      { name: "Charlie Brown", nickname: "Chuck", avatar: "👦" },
+      { name: "Diana Lee", nickname: "Di", avatar: "👩‍🎓" },
+      { name: "Eva Martinez", nickname: "Evie", avatar: "👩‍🔬" },
+      { name: "Frank Wilson", nickname: "Frankie", avatar: "👨‍🎨" },
+      { name: "Grace Chen", nickname: "Gracie", avatar: "👩‍⚕️" },
+      { name: "Henry Davis", nickname: "Hank", avatar: "👨‍🏫" },
+      { name: "Ivy Taylor", nickname: "Ives", avatar: "👩‍💻" },
+      { name: "Jack Miller", nickname: "Jackie", avatar: "👨‍🔧" },
+      { name: "Kate Anderson", nickname: "Katie", avatar: "👩‍🎤" },
+      { name: "Leo Garcia", nickname: "Lee", avatar: "👨‍🚀" },
+      { name: "Maya Patel", nickname: "May", avatar: "👩‍🏭" },
+      { name: "Noah Kim", nickname: "Noe", avatar: "👨‍💼" },
+      { name: "Olivia White", nickname: "Liv", avatar: "👩‍🎭" },
+      { name: "Paul Jones", nickname: "Paulie", avatar: "👨‍🔬" },
+      { name: "Quinn Roberts", nickname: "Q", avatar: "👩‍✈️" },
+      { name: "Ruby Clark", nickname: "Rubes", avatar: "👩‍🍳" },
+      { name: "Sam Thompson", nickname: "Sammy", avatar: "👨‍🎓" },
+      { name: "Tina Liu", nickname: "T", avatar: "👩‍🌾" },
+      { name: "Uma Singh", nickname: "U", avatar: "👩‍⚖️" },
+      { name: "Victor Cruz", nickname: "Vic", avatar: "👨‍🎤" },
+      { name: "Wendy Adams", nickname: "Wen", avatar: "👩‍🔧" },
+      { name: "Xander Green", nickname: "X", avatar: "👨‍🌾" },
+      { name: "Yara Hassan", nickname: "Y", avatar: "👩‍🚀" },
+      { name: "Zoe Cooper", nickname: "Z", avatar: "👩‍🏫" },
+      { name: "Alex Rivera", nickname: "Lex", avatar: "👨‍⚕️" },
+      { name: "Blake Foster", nickname: "B", avatar: "👨‍🎭" },
+      { name: "Cleo Park", nickname: "C", avatar: "👩‍🎨" },
+      { name: "Drew Wong", nickname: "D", avatar: "👨‍✈️" },
+      { name: "Ella Stone", nickname: "El", avatar: "👩‍🍳" },
+      { name: "Felix Burke", nickname: "Fe", avatar: "👨‍🏭" },
+      { name: "Gina Ross", nickname: "G", avatar: "👩‍🔬" },
+      { name: "Hugo Martinez", nickname: "H", avatar: "👨‍⚖️" },
+      { name: "Iris Coleman", nickname: "Iri", avatar: "👩‍🌾" }
     ];
 
     let studentIndex = 0;
@@ -40,8 +85,10 @@ export const SeatingChart = () => {
         
         initialSeats.push({
           id: `${row}-${col}`,
-          studentName: hasStudent ? students[studentIndex] : undefined,
+          studentName: hasStudent ? students[studentIndex].name : undefined,
           studentId: hasStudent ? `STU${(studentIndex + 1).toString().padStart(3, '0')}` : undefined,
+          nickname: hasStudent ? students[studentIndex].nickname : undefined,
+          avatar: hasStudent ? students[studentIndex].avatar : undefined,
           status: status as AttendanceStatus,
           row,
           col
@@ -120,8 +167,138 @@ export const SeatingChart = () => {
 
   const statusCounts = getStatusCounts();
 
+  const getDisplayModeLabel = (mode: DisplayMode) => {
+    const labels = {
+      "full-name": "Full Name",
+      "first-name": "First Name Only", 
+      "last-name": "Last Name Only",
+      "nickname": "Nickname Only",
+      "picture": "Picture Only",
+      "first-name-picture": "First Name + Picture",
+      "last-name-picture": "Last Name + Picture",
+      "nickname-picture": "Nickname + Picture", 
+      "full-name-picture": "Full Name + Picture",
+      "student-id": "Student ID Only",
+      "student-id-picture": "Student ID + Picture"
+    };
+    return labels[mode];
+  };
+
+  const renderSeatContent = (seat: Seat) => {
+    if (!seat.studentName) return null;
+
+    const firstName = seat.studentName.split(' ')[0];
+    const lastName = seat.studentName.split(' ')[1] || '';
+    
+    switch (displayMode) {
+      case "first-name":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="font-medium truncate w-full text-xs">{firstName}</div>
+          </div>
+        );
+      case "last-name":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="font-medium truncate w-full text-xs">{lastName}</div>
+          </div>
+        );
+      case "nickname":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="font-medium truncate w-full text-xs">{seat.nickname}</div>
+          </div>
+        );
+      case "picture":
+        return (
+          <div className="mt-1 text-center">
+            <div className="text-lg">{seat.avatar}</div>
+          </div>
+        );
+      case "first-name-picture":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="text-sm">{seat.avatar}</div>
+            <div className="font-medium truncate w-full text-xs">{firstName}</div>
+          </div>
+        );
+      case "last-name-picture":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="text-sm">{seat.avatar}</div>
+            <div className="font-medium truncate w-full text-xs">{lastName}</div>
+          </div>
+        );
+      case "nickname-picture":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="text-sm">{seat.avatar}</div>
+            <div className="font-medium truncate w-full text-xs">{seat.nickname}</div>
+          </div>
+        );
+      case "full-name-picture":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="text-sm">{seat.avatar}</div>
+            <div className="font-medium truncate w-full text-xs">{firstName}</div>
+            <div className="text-xs text-muted-foreground truncate w-full">{lastName}</div>
+          </div>
+        );
+      case "student-id":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="font-medium truncate w-full text-xs">{seat.studentId}</div>
+          </div>
+        );
+      case "student-id-picture":
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="text-sm">{seat.avatar}</div>
+            <div className="font-medium truncate w-full text-xs">{seat.studentId}</div>
+          </div>
+        );
+      case "full-name":
+      default:
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="font-medium truncate w-full text-xs">{firstName}</div>
+            <div className="text-xs text-muted-foreground truncate w-full">{lastName}</div>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {/* Display Mode Selector */}
+      <Card className="p-4">
+        <div className="flex items-center gap-3 mb-4">
+          <Settings className="w-4 h-4 text-muted-foreground" />
+          <h4 className="font-medium text-foreground">Display Options</h4>
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="text-sm text-muted-foreground">Seat Display Mode:</label>
+          <Select value={displayMode} onValueChange={(value: DisplayMode) => setDisplayMode(value)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="full-name">Full Name</SelectItem>
+              <SelectItem value="first-name">First Name Only</SelectItem>
+              <SelectItem value="last-name">Last Name Only</SelectItem>
+              <SelectItem value="nickname">Nickname Only</SelectItem>
+              <SelectItem value="picture">Picture Only</SelectItem>
+              <SelectItem value="first-name-picture">First Name + Picture</SelectItem>
+              <SelectItem value="last-name-picture">Last Name + Picture</SelectItem>
+              <SelectItem value="nickname-picture">Nickname + Picture</SelectItem>
+              <SelectItem value="full-name-picture">Full Name + Picture</SelectItem>
+              <SelectItem value="student-id">Student ID Only</SelectItem>
+              <SelectItem value="student-id-picture">Student ID + Picture</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </Card>
+
       {/* Legend */}
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
@@ -162,16 +339,7 @@ export const SeatingChart = () => {
               disabled={!seat.studentName}
             >
               {getSeatIcon(seat.status)}
-              {seat.studentName && (
-                <div className="mt-1 leading-tight text-center">
-                  <div className="font-medium truncate w-full">
-                    {seat.studentName.split(' ')[0]}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate w-full">
-                    {seat.studentName.split(' ')[1]}
-                  </div>
-                </div>
-              )}
+              {renderSeatContent(seat)}
             </Button>
           ))}
         </div>
