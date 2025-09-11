@@ -55,7 +55,7 @@ export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
             <h1 className="text-2xl font-bold">Profile</h1>
             <p className="text-primary-foreground/80">Manage your account</p>
           </div>
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={() => setShowEditProfile(true)}>
             <Edit3 className="w-4 h-4 mr-2" />
             Edit
           </Button>

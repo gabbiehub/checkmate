@@ -6,6 +6,7 @@ import { Plus, Users, Calendar, TrendingUp, Bell, QrCode, Clock } from "lucide-r
 import { StatsCard } from "./StatsCard";
 import { ClassCard } from "./ClassCard";
 import { QRCodeDialog } from "./QRCodeDialog";
+import { AddReminderDialog } from "./AddReminderDialog";
 
 interface TeacherHomeProps {
   onClassSelect?: (classId: string) => void;
@@ -14,6 +15,7 @@ interface TeacherHomeProps {
 
 export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => {
   const [showQRCode, setShowQRCode] = useState(false);
+  const [showAddReminder, setShowAddReminder] = useState(false);
   const upcomingEvents = [
     { id: 1, title: "CS101 Midterm Exam", time: "2:00 PM", type: "exam" },
     { id: 2, title: "Physics Lab Session", time: "4:00 PM", type: "class" },
@@ -123,7 +125,7 @@ export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => 
         <Card className="p-4 bg-gradient-warm shadow-card">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-foreground">Quick Reminders</h3>
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" onClick={() => setShowAddReminder(true)}>
               Add Reminder
             </Button>
           </div>
@@ -140,6 +142,10 @@ export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => 
           open={showQRCode} 
           onOpenChange={setShowQRCode}
           classData={{ name: "Math 101 - Algebra", code: "MATH101" }}
+        />
+        <AddReminderDialog 
+          open={showAddReminder} 
+          onOpenChange={setShowAddReminder}
         />
       </div>
     </div>

@@ -20,6 +20,7 @@ import { StudentList } from "./StudentList";
 import { ClassAnalytics } from "./ClassAnalytics";
 import { ClassSettingsDialog } from "./ClassSettingsDialog";
 import { QRCodeDialog } from "./QRCodeDialog";
+import { AddReminderDialog } from "./AddReminderDialog";
 
 interface ClassViewProps {
   classId: string;
@@ -30,6 +31,7 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
   const [activeTab, setActiveTab] = useState("seating");
   const [showSettings, setShowSettings] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
+  const [showAddReminder, setShowAddReminder] = useState(false);
   
   // Mock class data
   const classData = {
@@ -120,7 +122,7 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
             <QrCode className="w-4 h-4 mr-2" />
             Show Class Code
           </Button>
-          <Button variant="outline" className="flex-1">
+          <Button variant="outline" className="flex-1" onClick={() => setShowAddReminder(true)}>
             <Bell className="w-4 h-4 mr-2" />
             Add Reminder
           </Button>
@@ -174,6 +176,10 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
         open={showQRCode}
         onOpenChange={setShowQRCode}
         classData={{ name: classData.name, code: classData.code }}
+      />
+      <AddReminderDialog 
+        open={showAddReminder} 
+        onOpenChange={setShowAddReminder}
       />
     </div>
   );
