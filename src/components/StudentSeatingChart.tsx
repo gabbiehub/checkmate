@@ -3,9 +3,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { User, UserCheck, UserX, Clock, MapPin, Star } from "lucide-react";
+import { User, UserCheck, UserX, Clock, MapPin, Star, CheckCircle } from "lucide-react";
 
-type AttendanceStatus = "present" | "late" | "absent" | "empty";
+type AttendanceStatus = "present" | "late" | "absent" | "excused" | "empty";
 
 interface Seat {
   id: string;
@@ -82,8 +82,9 @@ export const StudentSeatingChart = ({ studentName, seatPosition }: StudentSeatin
         }
 
         const status = hasStudent ? 
-          (Math.random() > 0.8 ? "absent" : 
-           Math.random() > 0.9 ? "late" : "present") : "empty";
+          (Math.random() > 0.85 ? "absent" : 
+           Math.random() > 0.93 ? "late" : 
+           Math.random() > 0.98 ? "excused" : "present") : "empty";
         
         initialSeats.push({
           id: `${row}-${col}`,
@@ -115,6 +116,8 @@ export const StudentSeatingChart = ({ studentName, seatPosition }: StudentSeatin
         return "bg-yellow-50 border-yellow-200 hover:bg-yellow-100";
       case "absent":
         return "bg-red-50 border-red-200 hover:bg-red-100";
+      case "excused":
+        return "bg-blue-50 border-blue-200 hover:bg-blue-100";
       case "empty":
         return "bg-muted border-border opacity-30";
       default:
@@ -134,6 +137,8 @@ export const StudentSeatingChart = ({ studentName, seatPosition }: StudentSeatin
         return <Clock className="w-3 h-3 text-yellow-600" />;
       case "absent":
         return <UserX className="w-3 h-3 text-red-600" />;
+      case "excused":
+        return <CheckCircle className="w-3 h-3 text-blue-600" />;
       case "empty":
         return <div className="w-3 h-3" />;
       default:
@@ -189,6 +194,10 @@ export const StudentSeatingChart = ({ studentName, seatPosition }: StudentSeatin
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
             <span>Absent</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-100 border border-blue-200 rounded"></div>
+            <span>Excused</span>
           </div>
         </div>
       </Card>

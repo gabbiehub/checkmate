@@ -3,10 +3,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { User, UserCheck, UserX, Clock, Settings } from "lucide-react";
+import { User, UserCheck, UserX, Clock, Settings, CheckCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type AttendanceStatus = "present" | "late" | "absent" | "empty";
+type AttendanceStatus = "present" | "late" | "absent" | "excused" | "empty";
 
 type DisplayMode = 
   | "full-name" 
@@ -80,8 +80,9 @@ export const SeatingChart = () => {
       for (let col = 0; col < 8; col++) {
         const hasStudent = studentIndex < students.length && Math.random() > 0.1; // 90% chance of having a student
         const status = hasStudent ? 
-          (Math.random() > 0.8 ? "absent" : 
-           Math.random() > 0.9 ? "late" : "present") : "empty";
+          (Math.random() > 0.85 ? "absent" : 
+           Math.random() > 0.93 ? "late" : 
+           Math.random() > 0.98 ? "excused" : "present") : "empty";
         
         initialSeats.push({
           id: `${row}-${col}`,
@@ -114,6 +115,9 @@ export const SeatingChart = () => {
               newStatus = "absent";
               break;
             case "absent":
+              newStatus = "excused";
+              break;
+            case "excused":
               newStatus = "present";
               break;
             default:
@@ -134,6 +138,8 @@ export const SeatingChart = () => {
         return "bg-yellow-100 border-yellow-300 hover:bg-yellow-200";
       case "absent":
         return "bg-red-100 border-red-300 hover:bg-red-200";
+      case "excused":
+        return "bg-blue-100 border-blue-300 hover:bg-blue-200";
       case "empty":
         return "bg-muted border-border opacity-30";
       default:
@@ -149,6 +155,8 @@ export const SeatingChart = () => {
         return <Clock className="w-4 h-4 text-yellow-600" />;
       case "absent":
         return <UserX className="w-4 h-4 text-red-600" />;
+      case "excused":
+        return <CheckCircle className="w-4 h-4 text-blue-600" />;
       case "empty":
         return <div className="w-4 h-4" />;
       default:
@@ -162,7 +170,7 @@ export const SeatingChart = () => {
         counts[seat.status as keyof typeof counts]++;
       }
       return counts;
-    }, { present: 0, late: 0, absent: 0 });
+    }, { present: 0, late: 0, absent: 0, excused: 0 });
   };
 
   const statusCounts = getStatusCounts();
@@ -313,6 +321,9 @@ export const SeatingChart = () => {
             <Badge variant="outline" className="bg-red-100 text-red-700">
               Absent: {statusCounts.absent}
             </Badge>
+            <Badge variant="outline" className="bg-blue-100 text-blue-700">
+              Excused: {statusCounts.excused}
+            </Badge>
           </div>
         </div>
       </Card>
@@ -345,12 +356,12 @@ export const SeatingChart = () => {
         </div>
         
         <div className="mt-4 text-center text-xs text-muted-foreground">
-          Tap on seats to mark attendance • Present → Late → Absent → Present
+          Tap on seats to mark attendance • Present → Late → Absent → Excused → Present
         </div>
       </Card>
 
       {/* Quick Actions */}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Button 
           variant="outline" 
           className="flex-1"
@@ -374,6 +385,30 @@ export const SeatingChart = () => {
         >
           <UserX className="w-4 h-4 mr-2" />
           Mark All Absent
+        </Button>
+        <Button 
+          variant="outline" 
+          className="flex-1"
+          onClick={() => {
+            setSeats(prev => prev.map(seat => 
+              seat.studentName ? { ...seat, status: "excused" as AttendanceStatus } : seat
+            ));
+          }}
+        >
+          <CheckCircle className="w-4 h-4 mr-2" />
+          Mark All Excused
+        </Button>
+        <Button 
+          variant="outline" 
+          className="flex-1"
+          onClick={() => {
+            setSeats(prev => prev.map(seat => 
+              seat.studentName ? { ...seat, status: "late" as AttendanceStatus } : seat
+            ));
+          }}
+        >
+          <Clock className="w-4 h-4 mr-2" />
+          Mark All Late
         </Button>
       </div>
     </div>

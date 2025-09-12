@@ -4,14 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, UserCheck, UserX, Clock, Phone, Mail, MoreVertical } from "lucide-react";
+import { Search, UserCheck, UserX, Clock, Phone, Mail, MoreVertical, CheckCircle } from "lucide-react";
 
 interface Student {
   id: string;
   name: string;
   email: string;
   avatar?: string;
-  status: "present" | "late" | "absent";
+  status: "present" | "late" | "absent" | "excused";
   attendanceRate: number;
   totalClasses: number;
   presentCount: number;
@@ -64,6 +64,15 @@ export const StudentList = () => {
       attendanceRate: 85,
       totalClasses: 20,
       presentCount: 17
+    },
+    {
+      id: "STU006",
+      name: "Frank Wilson",
+      email: "frank.w@university.edu",
+      status: "excused", 
+      attendanceRate: 92,
+      totalClasses: 20,
+      presentCount: 18
     }
   ]);
 
@@ -80,6 +89,8 @@ export const StudentList = () => {
         return <Clock className="w-4 h-4 text-yellow-600" />;
       case "absent":
         return <UserX className="w-4 h-4 text-red-600" />;
+      case "excused":
+        return <CheckCircle className="w-4 h-4 text-blue-600" />;
       default:
         return null;
     }
@@ -93,6 +104,8 @@ export const StudentList = () => {
         return "bg-yellow-100 text-yellow-800";
       case "absent":
         return "bg-red-100 text-red-800";
+      case "excused":
+        return "bg-blue-100 text-blue-800";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -201,6 +214,9 @@ export const StudentList = () => {
             </span>
             <span className="text-red-600">
               Absent: {students.filter(s => s.status === "absent").length}
+            </span>
+            <span className="text-blue-600">
+              Excused: {students.filter(s => s.status === "excused").length}
             </span>
           </div>
         </div>
