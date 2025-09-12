@@ -3,7 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
-import { Plus, Clock, MapPin, Users, Filter } from "lucide-react";
+import { Plus, Clock, MapPin, Users, Filter, Monitor, Users2, BookOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const CalendarView = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -25,10 +26,31 @@ export const CalendarView = () => {
       time: "4:00 PM - 6:00 PM",
       location: "Physics Lab",
       type: "class",
+      meetingType: "face-to-face",
       class: "PHYS150"
     },
     {
       id: 3,
+      title: "Math Online Lecture",
+      date: "2024-03-15",
+      time: "10:00 AM - 11:30 AM",
+      location: "Zoom Meeting",
+      type: "class",
+      meetingType: "online",
+      class: "MATH201"
+    },
+    {
+      id: 4,
+      title: "History Self-Study",
+      date: "2024-03-15",
+      time: "All Day",
+      location: "Canvas Platform",
+      type: "class",
+      meetingType: "asynchronous",
+      class: "HIST101"
+    },
+    {
+      id: 5,
       title: "Math Assignment Due",
       date: "2024-03-16",
       time: "11:59 PM",
@@ -37,6 +59,32 @@ export const CalendarView = () => {
       class: "MATH201"
     },
   ];
+
+  const getMeetingTypeIcon = (meetingType?: string) => {
+    switch (meetingType) {
+      case "face-to-face":
+        return <Users2 className="w-3 h-3" />;
+      case "online":
+        return <Monitor className="w-3 h-3" />;
+      case "asynchronous":
+        return <BookOpen className="w-3 h-3" />;
+      default:
+        return null;
+    }
+  };
+
+  const getMeetingTypeColor = (meetingType?: string) => {
+    switch (meetingType) {
+      case "face-to-face":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "online":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "asynchronous":
+        return "bg-purple-100 text-purple-800 border-purple-200";
+      default:
+        return "";
+    }
+  };
 
   const todaysEvents = events.filter(event => event.date === "2024-03-15");
 
@@ -93,15 +141,27 @@ export const CalendarView = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="font-medium text-foreground">{event.title}</h3>
-                      <Badge 
-                        variant={
-                          event.type === 'exam' ? 'destructive' : 
-                          event.type === 'deadline' ? 'secondary' : 'default'
-                        }
-                        className="text-xs"
-                      >
-                        {event.type}
-                      </Badge>
+                      <div className="flex gap-1">
+                        <Badge 
+                          variant={
+                            event.type === 'exam' ? 'destructive' : 
+                            event.type === 'deadline' ? 'secondary' : 'default'
+                          }
+                          className="text-xs"
+                        >
+                          {event.type}
+                        </Badge>
+                        {event.meetingType && (
+                          <Badge 
+                            className={cn("text-xs flex items-center gap-1", getMeetingTypeColor(event.meetingType))}
+                            variant="outline"
+                          >
+                            {getMeetingTypeIcon(event.meetingType)}
+                            {event.meetingType === "face-to-face" ? "In-Person" : 
+                             event.meetingType === "online" ? "Online" : "Async"}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="space-y-1 text-sm text-muted-foreground">

@@ -23,6 +23,7 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
   const [formData, setFormData] = useState({
     title: "",
     type: "",
+    meetingType: "",
     time: "",
     location: "",
     description: "",
@@ -39,6 +40,7 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
     setFormData({
       title: "",
       type: "",
+      meetingType: "",
       time: "",
       location: "",
       description: "",
@@ -77,7 +79,7 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
                 <SelectValue placeholder="Select event type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="class">Class</SelectItem>
+                <SelectItem value="class">Class Session</SelectItem>
                 <SelectItem value="exam">Exam</SelectItem>
                 <SelectItem value="meeting">Meeting</SelectItem>
                 <SelectItem value="assignment">Assignment Due</SelectItem>
@@ -85,6 +87,22 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
               </SelectContent>
             </Select>
           </div>
+
+          {formData.type === "class" && (
+            <div className="space-y-2">
+              <Label htmlFor="meetingType">Session Type</Label>
+              <Select value={formData.meetingType} onValueChange={(value) => handleInputChange("meetingType", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select session type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="face-to-face">Face-to-Face</SelectItem>
+                  <SelectItem value="online">Online Meeting</SelectItem>
+                  <SelectItem value="asynchronous">Asynchronous</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Date</Label>
