@@ -1,11 +1,43 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, TrendingDown, Users, Calendar, AlertTriangle, BarChart3, Download, Filter } from "lucide-react";
 import { StatsCard } from "./StatsCard";
+import { ContactStudentDialog } from "./ContactStudentDialog";
+import { useToast } from "@/hooks/use-toast";
 
 export const AnalyticsView = () => {
+  const { toast } = useToast();
+  const [selectedStudent, setSelectedStudent] = useState<{ name: string; class: string } | null>(null);
+  const [showContactDialog, setShowContactDialog] = useState(false);
+
+  const handleExport = () => {
+    toast({
+      title: "Exporting Report",
+      description: "Your analytics report is being generated...",
+    });
+  };
+
+  const handleFilter = () => {
+    toast({
+      title: "Filters",
+      description: "Advanced filter options coming soon!",
+    });
+  };
+
+  const handleViewDetails = () => {
+    toast({
+      title: "Class Details",
+      description: "Detailed class analytics view coming soon!",
+    });
+  };
+
+  const handleContactStudent = (student: { name: string; class: string }) => {
+    setSelectedStudent(student);
+    setShowContactDialog(true);
+  };
   const overallStats = [
     { title: "Total Classes", value: "12", icon: <Users className="w-4 h-4" />, trend: "+2 from last month" },
     { title: "Total Students", value: "420", icon: <Users className="w-4 h-4" />, trend: "+15 from last month" },
@@ -35,7 +67,7 @@ export const AnalyticsView = () => {
             <h1 className="text-2xl font-bold">Analytics</h1>
             <p className="text-primary-foreground/80">Track performance & insights</p>
           </div>
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -54,7 +86,7 @@ export const AnalyticsView = () => {
               <SelectItem value="this-year">This Year</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+          <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={handleFilter}>
             <Filter className="w-3 h-3 mr-1" />
             Filter
           </Button>
@@ -83,7 +115,7 @@ export const AnalyticsView = () => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground">Class Performance</h2>
-            <Button variant="ghost" size="sm" className="text-primary">
+            <Button variant="ghost" size="sm" className="text-primary" onClick={handleViewDetails}>
               View Details
             </Button>
           </div>
@@ -143,7 +175,7 @@ export const AnalyticsView = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-destructive" />
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleContactStudent(student)}>
                       Contact
                     </Button>
                   </div>
@@ -178,6 +210,12 @@ export const AnalyticsView = () => {
           </div>
         </Card>
       </div>
+
+      <ContactStudentDialog 
+        open={showContactDialog} 
+        onOpenChange={setShowContactDialog}
+        studentName={selectedStudent?.name || ""}
+      />
     </div>
   );
 };

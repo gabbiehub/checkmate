@@ -21,14 +21,30 @@ import {
   Camera
 } from "lucide-react";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
+import { AccountSettingsDialog } from "@/components/AccountSettingsDialog";
+import { PrivacySecurityDialog } from "@/components/PrivacySecurityDialog";
+import { HelpSupportDialog } from "@/components/HelpSupportDialog";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProfileViewProps {
   onSignOut?: () => void;
 }
 
 export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
+  const { toast } = useToast();
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showPrivacySecurity, setShowPrivacySecurity] = useState(false);
+  const [showHelpSupport, setShowHelpSupport] = useState(false);
+  
+  const handleImageUpload = () => {
+    toast({
+      title: "Upload Photo",
+      description: "Photo upload feature coming soon!",
+    });
+  };
+
   const profileData = {
     name: "Prof. John Smith",
     email: "john.smith@university.edu",
@@ -78,6 +94,7 @@ export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
                 size="icon" 
                 variant="secondary" 
                 className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full shadow-md"
+                onClick={handleImageUpload}
               >
                 <Camera className="w-3 h-3" />
               </Button>
@@ -158,17 +175,17 @@ export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
 
         {/* Account Settings */}
         <div className="space-y-3">
-          <Button variant="outline" className="w-full justify-start h-12">
+          <Button variant="outline" className="w-full justify-start h-12" onClick={() => setShowAccountSettings(true)}>
             <Settings className="w-4 h-4 mr-3" />
             Account Settings
           </Button>
           
-          <Button variant="outline" className="w-full justify-start h-12">
+          <Button variant="outline" className="w-full justify-start h-12" onClick={() => setShowPrivacySecurity(true)}>
             <Shield className="w-4 h-4 mr-3" />
             Privacy & Security
           </Button>
           
-          <Button variant="outline" className="w-full justify-start h-12">
+          <Button variant="outline" className="w-full justify-start h-12" onClick={() => setShowHelpSupport(true)}>
             <HelpCircle className="w-4 h-4 mr-3" />
             Help & Support
           </Button>
@@ -193,6 +210,18 @@ export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
         <EditProfileDialog 
           open={showEditProfile} 
           onOpenChange={setShowEditProfile} 
+        />
+        <AccountSettingsDialog 
+          open={showAccountSettings} 
+          onOpenChange={setShowAccountSettings} 
+        />
+        <PrivacySecurityDialog 
+          open={showPrivacySecurity} 
+          onOpenChange={setShowPrivacySecurity} 
+        />
+        <HelpSupportDialog 
+          open={showHelpSupport} 
+          onOpenChange={setShowHelpSupport} 
         />
       </div>
     </div>
