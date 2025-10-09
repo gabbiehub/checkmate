@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { User, UserCheck, UserX, Clock, Settings, CheckCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -329,31 +330,33 @@ export const SeatingChart = () => {
       </Card>
 
       {/* Seating Chart */}
-      <Card className="p-4 overflow-x-auto">
+      <Card className="p-4">
         <div className="mb-4 text-center">
           <div className="inline-block px-8 py-2 bg-muted rounded-lg text-sm font-medium text-muted-foreground">
             📚 Teacher's Desk / Whiteboard
           </div>
         </div>
         
-        <div className="grid grid-cols-8 gap-2 min-w-fit mx-auto">
-          {seats.map((seat) => (
-            <Button
-              key={seat.id}
-              variant="outline"
-              className={cn(
-                "h-16 w-16 p-1 flex flex-col items-center justify-center text-xs border-2 transition-all",
-                getSeatColor(seat.status),
-                seat.studentName ? "cursor-pointer hover:scale-105" : "cursor-not-allowed"
-              )}
-              onClick={() => seat.studentName && toggleSeatStatus(seat.id)}
-              disabled={!seat.studentName}
-            >
-              {getSeatIcon(seat.status)}
-              {renderSeatContent(seat)}
-            </Button>
-          ))}
-        </div>
+        <ScrollArea className="w-full">
+          <div className="grid grid-cols-8 gap-3 pb-4" style={{ minWidth: '600px' }}>
+            {seats.map((seat) => (
+              <Button
+                key={seat.id}
+                variant="outline"
+                className={cn(
+                  "h-20 w-20 p-1 flex flex-col items-center justify-center text-xs border-2 transition-all",
+                  getSeatColor(seat.status),
+                  seat.studentName ? "cursor-pointer hover:scale-105" : "cursor-not-allowed"
+                )}
+                onClick={() => seat.studentName && toggleSeatStatus(seat.id)}
+                disabled={!seat.studentName}
+              >
+                {getSeatIcon(seat.status)}
+                {renderSeatContent(seat)}
+              </Button>
+            ))}
+          </div>
+        </ScrollArea>
         
         <div className="mt-4 text-center text-xs text-muted-foreground">
           Tap on seats to mark attendance • Present → Late → Absent → Excused → Present
