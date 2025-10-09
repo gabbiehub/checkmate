@@ -337,7 +337,7 @@ export const SeatingChart = () => {
           </div>
         </div>
         
-        <ScrollArea className="w-full">
+        <ScrollArea className="w-full overflow-x-auto">
           <div className="grid grid-cols-8 gap-3 pb-4" style={{ minWidth: '600px' }}>
             {seats.map((seat) => (
               <Button
