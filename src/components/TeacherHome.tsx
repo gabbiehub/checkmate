@@ -7,15 +7,18 @@ import { StatsCard } from "./StatsCard";
 import { ClassCard } from "./ClassCard";
 import { QRCodeDialog } from "./QRCodeDialog";
 import { AddReminderDialog } from "./AddReminderDialog";
+import { NotificationsDialog } from "./NotificationsDialog";
 
 interface TeacherHomeProps {
   onClassSelect?: (classId: string) => void;
   onNewClass?: () => void;
+  onViewAllClasses?: () => void;
 }
 
-export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => {
+export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: TeacherHomeProps) => {
   const [showQRCode, setShowQRCode] = useState(false);
   const [showAddReminder, setShowAddReminder] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const upcomingEvents = [
     { id: 1, title: "CS101 Midterm Exam", time: "2:00 PM", type: "exam" },
     { id: 2, title: "Physics Lab Session", time: "4:00 PM", type: "class" },
@@ -36,10 +39,15 @@ export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => 
             <h1 className="text-2xl font-bold">Welcome back, Prof. Smith!</h1>
             <p className="text-primary-foreground/80 mt-1">Tuesday, March 15, 2024</p>
           </div>
-          <div className="relative">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="relative text-primary-foreground hover:bg-white/10"
+            onClick={() => setShowNotifications(true)}
+          >
             <Bell className="w-6 h-6" />
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full"></div>
-          </div>
+          </Button>
         </div>
 
         {/* Quick Actions */}
@@ -48,7 +56,11 @@ export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => 
             <Plus className="w-4 h-4 mr-2" />
             New Class
           </Button>
-          <Button variant="outline" className="px-4 h-12 bg-white/10 border-white/20 text-white hover:bg-white/20">
+          <Button 
+            variant="outline" 
+            className="px-4 h-12 bg-white/10 border-white/20 text-white hover:bg-white/20"
+            onClick={() => setShowQRCode(true)}
+          >
             <QrCode className="w-4 h-4" />
           </Button>
         </div>
@@ -106,7 +118,12 @@ export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => 
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground">Your Classes</h2>
-            <Button variant="ghost" size="sm" className="text-primary">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-primary"
+              onClick={onViewAllClasses}
+            >
               View All
             </Button>
           </div>
@@ -146,6 +163,11 @@ export const TeacherHome = ({ onClassSelect, onNewClass }: TeacherHomeProps) => 
         <AddReminderDialog 
           open={showAddReminder} 
           onOpenChange={setShowAddReminder}
+        />
+        <NotificationsDialog 
+          open={showNotifications} 
+          onOpenChange={setShowNotifications}
+          userType="teacher"
         />
       </div>
     </div>

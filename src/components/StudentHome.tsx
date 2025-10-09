@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Bell, BookOpen, Clock, Users, TrendingUp, Calendar, QrCode } from "lucide-react";
 import { StatsCard } from "@/components/StatsCard";
+import { NotificationsDialog } from "@/components/NotificationsDialog";
 
 interface StudentHomeProps {
   onClassSelect?: (classId: string) => void;
@@ -13,6 +14,7 @@ interface StudentHomeProps {
 }
 
 export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) => {
+  const [showNotifications, setShowNotifications] = useState(false);
   const [notifications] = useState([
     { id: 1, message: "Math 101 class starts in 30 minutes", type: "reminder" },
     { id: 2, message: "Assignment due tomorrow for Physics", type: "assignment" }
@@ -77,7 +79,12 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
             <p className="text-muted-foreground">Ready for another great day of learning?</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="relative"
+              onClick={() => setShowNotifications(true)}
+            >
               <Bell className="w-5 h-5" />
               {notifications.length > 0 && (
                 <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs">
@@ -207,12 +214,18 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
               {notifications.map((notification) => (
                 <div key={notification.id} className="p-3 bg-accent/50 rounded-lg">
                   <p className="text-sm">{notification.message}</p>
-                </div>
-              ))}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+
+  <NotificationsDialog 
+    open={showNotifications} 
+    onOpenChange={setShowNotifications}
+    userType="student"
+  />
+</div>
+);
 };

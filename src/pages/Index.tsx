@@ -63,7 +63,11 @@ const Index = () => {
     switch (activeTab) {
       case "home":
         return userType === 'teacher' 
-          ? <TeacherHome onClassSelect={handleClassSelect} onNewClass={handleNewClass} />
+          ? <TeacherHome 
+              onClassSelect={handleClassSelect} 
+              onNewClass={handleNewClass}
+              onViewAllClasses={() => setActiveTab("classes")}
+            />
           : <StudentHome onClassSelect={handleClassSelect} onJoinClass={() => setShowJoinClass(true)} />;
       case "classes":
         return <ClassesView 
@@ -80,7 +84,11 @@ const Index = () => {
         return <ProfileView onSignOut={() => setIsAuthenticated(false)} />;
       default:
         return userType === 'teacher' 
-          ? <TeacherHome onClassSelect={handleClassSelect} onNewClass={handleNewClass} />
+          ? <TeacherHome 
+              onClassSelect={handleClassSelect} 
+              onNewClass={handleNewClass}
+              onViewAllClasses={() => setActiveTab("classes")}
+            />
           : <StudentHome onClassSelect={handleClassSelect} onJoinClass={() => setShowJoinClass(true)} />;
     }
   };
