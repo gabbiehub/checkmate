@@ -5,9 +5,24 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Plus, Clock, MapPin, Users, Filter, Monitor, Users2, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AddEventDialog } from "@/components/AddEventDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
+interface Event {
+  id: number;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  type: string;
+  class: string;
+  meetingType?: string;
+}
 
 export const CalendarView = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [isAddEventOpen, setIsAddEventOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   const events = [
     {
@@ -97,7 +112,7 @@ export const CalendarView = () => {
             <h1 className="text-2xl font-bold">Calendar</h1>
             <p className="text-primary-foreground/80">Manage your schedule</p>
           </div>
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={() => setIsAddEventOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Event
           </Button>
@@ -179,6 +194,13 @@ export const CalendarView = () => {
                       </div>
                     </div>
                   </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setSelectedEvent(event)}
+                  >
+                    View Details
+                  </Button>
                 </div>
               </Card>
             ))}
@@ -214,6 +236,56 @@ export const CalendarView = () => {
           </div>
         </div>
       </div>
+
+      <AddEventDialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen} />
+      
+      <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedEvent?.title}</DialogTitle>
+            <DialogDescription>Event details and information</DialogDescription>
+          </DialogHeader>
+          {selectedEvent && (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Badge 
+                  variant={
+                    selectedEvent.type === 'exam' ? 'destructive' : 
+                    selectedEvent.type === 'deadline' ? 'secondary' : 'default'
+                  }
+                >
+                  {selectedEvent.type}
+                </Badge>
+                {selectedEvent.meetingType && (
+                  <Badge 
+                    className={cn("flex items-center gap-1", getMeetingTypeColor(selectedEvent.meetingType))}
+                    variant="outline"
+                  >
+                    {getMeetingTypeIcon(selectedEvent.meetingType)}
+                    {selectedEvent.meetingType === "face-to-face" ? "In-Person" : 
+                     selectedEvent.meetingType === "online" ? "Online" : "Async"}
+                  </Badge>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedEvent.time}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedEvent.location}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span>{selectedEvent.class}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
