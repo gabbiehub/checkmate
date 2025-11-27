@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { GraduationCap, Users, Eye, EyeOff } from "lucide-react";
+import { GraduationCap, Users, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthPageProps {
@@ -14,8 +17,13 @@ interface AuthPageProps {
 
 export const AuthPage = ({ onLogin }: AuthPageProps) => {
   const { toast } = useToast();
+  const { login } = useAuth();
+  const signIn = useMutation(api.auth.signIn);
+  const signUp = useMutation(api.auth.signUp);
+  
   const [showPassword, setShowPassword] = useState(false);
   const [userType, setUserType] = useState<'teacher' | 'student'>('teacher');
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -23,17 +31,54 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
     confirmPassword: ''
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Welcome back!",
-      description: `Logged in as ${userType}`,
-    });
-    onLogin(userType);
+    setIsLoading(true);
+    
+    try {
+      const result = await signIn({
+        email: formData.email,
+        password: formData.password,
+      });
+      
+      // Check if the user role matches the selected type
+      if (result.role !== userType) {
+        toast({
+          title: "Error",
+          description: `This account is registered as a ${result.role}, not a ${userType}`,
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      login({
+        userId: result.userId,
+        email: result.email,
+        name: result.name,
+        role: result.role,
+      });
+      
+      toast({
+        title: "Welcome back!",
+        description: `Logged in as ${result.role}`,
+      });
+      
+      onLogin(result.role);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to sign in",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Error",
@@ -42,11 +87,48 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
       });
       return;
     }
-    toast({
-      title: "Account created!",
-      description: `Welcome to CheckMate as a ${userType}`,
-    });
-    onLogin(userType);
+    
+    if (formData.password.length < 6) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 6 characters",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const result = await signUp({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        role: userType,
+      });
+      
+      login({
+        userId: result.userId,
+        email: result.email,
+        name: result.name,
+        role: result.role,
+      });
+      
+      toast({
+        title: "Account created!",
+        description: `Welcome to CheckMate as a ${userType}`,
+      });
+      
+      onLogin(userType);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create account",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -132,8 +214,15 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
                   </div>
                 </div>
                 
-                <Button type="submit" className="w-full">
-                  Login as {userType}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Logging in...
+                    </>
+                  ) : (
+                    `Login as ${userType}`
+                  )}
                 </Button>
               </form>
             </TabsContent>
@@ -199,8 +288,15 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
                   />
                 </div>
                 
-                <Button type="submit" className="w-full">
-                  Sign up as {userType}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating account...
+                    </>
+                  ) : (
+                    `Sign up as ${userType}`
+                  )}
                 </Button>
               </form>
             </TabsContent>

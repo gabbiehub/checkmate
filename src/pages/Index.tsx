@@ -12,17 +12,27 @@ import { AuthPage } from "@/components/AuthPage";
 import { JoinClassDialog } from "@/components/JoinClassDialog";
 import { AddEventDialog } from "@/components/AddEventDialog";
 import { ClassSettingsDialog } from "@/components/ClassSettingsDialog";
+import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
 
 const Index = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userType, setUserType] = useState<'teacher' | 'student'>('teacher');
+  const { user, isLoading: authLoading, logout } = useAuth();
+  const isAuthenticated = !!user;
+  const userType = user?.role || 'teacher';
+  
   const [activeTab, setActiveTab] = useState("home");
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [showNewClassForm, setShowNewClassForm] = useState(false);
   const [showJoinClass, setShowJoinClass] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showClassSettings, setShowClassSettings] = useState(false);
+
+  const handleSignOut = () => {
+    logout();
+    setActiveTab("home");
+    setSelectedClass(null);
+    setShowNewClassForm(false);
+  };
 
   const handleClassSelect = (classId: string) => {
     setSelectedClass(classId);
@@ -81,7 +91,7 @@ const Index = () => {
       case "analytics":
         return <AnalyticsView />;
       case "profile":
-        return <ProfileView onSignOut={() => setIsAuthenticated(false)} />;
+        return <ProfileView onSignOut={handleSignOut} />;
       default:
         return userType === 'teacher' 
           ? <TeacherHome 
@@ -93,8 +103,19 @@ const Index = () => {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 mx-auto mb-4 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <AuthPage onLogin={(type) => { setUserType(type); setIsAuthenticated(true); }} />;
+    return <AuthPage onLogin={() => { /* Auth handled by context */ }} />;
   }
 
   return (
