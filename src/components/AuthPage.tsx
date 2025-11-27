@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap, Users, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -28,7 +29,9 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
     email: '',
     password: '',
     name: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    idNumber: '',
+    studentLevel: 'college' as 'elementary' | 'junior_high' | 'senior_high' | 'college'
   });
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -57,6 +60,11 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
         email: result.email,
         name: result.name,
         role: result.role,
+        idNumber: result.idNumber,
+        studentLevel: result.studentLevel,
+        phone: result.phone,
+        office: result.office,
+        createdAt: result.createdAt,
       });
       
       toast({
@@ -105,6 +113,8 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
         password: formData.password,
         name: formData.name,
         role: userType,
+        idNumber: formData.idNumber || undefined,
+        studentLevel: userType === 'student' ? formData.studentLevel : undefined,
       });
       
       login({
@@ -112,6 +122,9 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
         email: result.email,
         name: result.name,
         role: result.role,
+        idNumber: result.idNumber,
+        studentLevel: result.studentLevel,
+        createdAt: result.createdAt,
       });
       
       toast({
@@ -252,6 +265,41 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
                     required
                   />
                 </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="signup-idNumber">
+                    {userType === 'student' ? 'Student ID' : 'Employee ID'}
+                  </Label>
+                  <Input
+                    id="signup-idNumber"
+                    type="text"
+                    placeholder={userType === 'student' ? 'Enter your student ID' : 'Enter your employee ID'}
+                    value={formData.idNumber}
+                    onChange={(e) => setFormData(prev => ({ ...prev, idNumber: e.target.value }))}
+                  />
+                </div>
+                
+                {userType === 'student' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-studentLevel">Student Level</Label>
+                    <Select
+                      value={formData.studentLevel}
+                      onValueChange={(value: 'elementary' | 'junior_high' | 'senior_high' | 'college') => 
+                        setFormData(prev => ({ ...prev, studentLevel: value }))
+                      }
+                    >
+                      <SelectTrigger id="signup-studentLevel">
+                        <SelectValue placeholder="Select your level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="elementary">Elementary</SelectItem>
+                        <SelectItem value="junior_high">Junior High</SelectItem>
+                        <SelectItem value="senior_high">Senior High</SelectItem>
+                        <SelectItem value="college">College</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>

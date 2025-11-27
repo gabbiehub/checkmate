@@ -1,6 +1,114 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
+// Get all events for a user (teacher or student)
+export const getUserEvents = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return [];
+    }
+
+    let classes: any[] = [];
+
+    if (user.role === "teacher") {
+      // Get all classes taught by this teacher
+      classes = await ctx.db
+        .query("classes")
+        .withIndex("by_teacher", (q) => q.eq("teacherId", args.userId))
+        .collect();
+    } else {
+      // Get all classes the student is enrolled in
+      const memberships = await ctx.db
+        .query("classMembers")
+        .withIndex("by_student", (q) => q.eq("studentId", args.userId))
+        .collect();
+      
+      // Get class details for each membership
+      classes = (await Promise.all(
+        memberships.map((m) => ctx.db.get(m.classId))
+      )).filter((c) => c !== null);
+    }
+
+    // Get all events for these classes
+    const allEvents = [];
+    for (const classInfo of classes) {
+      if (!classInfo) continue;
+      
+      const events = await ctx.db
+        .query("events")
+        .withIndex("by_class", (q) => q.eq("classId", classInfo._id))
+        .collect();
+      
+      // Enrich events with class information
+      const enrichedEvents = events.map((event) => ({
+        ...event,
+        className: classInfo.name,
+      }));
+      
+      allEvents.push(...enrichedEvents);
+    }
+
+    return allEvents;
+  },
+});
+
+// Get events for a specific date range
+export const getEventsInRange = query({
+  args: { 
+    userId: v.id("users"),
+    startDate: v.string(),
+    endDate: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return [];
+    }
+
+    let classes: any[] = [];
+
+    if (user.role === "teacher") {
+      classes = await ctx.db
+        .query("classes")
+        .withIndex("by_teacher", (q) => q.eq("teacherId", args.userId))
+        .collect();
+    } else {
+      const memberships = await ctx.db
+        .query("classMembers")
+        .withIndex("by_student", (q) => q.eq("studentId", args.userId))
+        .collect();
+      
+      classes = (await Promise.all(
+        memberships.map((m) => ctx.db.get(m.classId))
+      )).filter((c) => c !== null);
+    }
+
+    const allEvents = [];
+    for (const classInfo of classes) {
+      if (!classInfo) continue;
+      
+      const events = await ctx.db
+        .query("events")
+        .withIndex("by_class", (q) => q.eq("classId", classInfo._id))
+        .collect();
+      
+      // Filter by date range and enrich with class info
+      const filteredEvents = events
+        .filter((event) => event.date >= args.startDate && event.date <= args.endDate)
+        .map((event) => ({
+          ...event,
+          className: classInfo.name,
+        }));
+      
+      allEvents.push(...filteredEvents);
+    }
+
+    return allEvents;
+  },
+});
+
 // Get events for a class
 export const getClassEvents = query({
   args: { classId: v.id("classes") },

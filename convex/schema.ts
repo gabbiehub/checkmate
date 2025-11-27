@@ -8,6 +8,18 @@ export default defineSchema({
     role: v.union(v.literal("teacher"), v.literal("student")),
     avatarUrl: v.optional(v.string()),
     createdAt: v.number(),
+    // ID field for both students and teachers/employees
+    idNumber: v.optional(v.string()),
+    // Student-specific field
+    studentLevel: v.optional(v.union(
+      v.literal("elementary"),
+      v.literal("junior_high"),
+      v.literal("senior_high"),
+      v.literal("college")
+    )),
+    // Common fields
+    phone: v.optional(v.string()),
+    office: v.optional(v.string()),
   })
     .index("by_email", ["email"])
     .index("by_role", ["role"]),

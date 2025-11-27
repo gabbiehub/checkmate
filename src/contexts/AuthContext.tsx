@@ -6,6 +6,11 @@ interface User {
   email: string;
   name: string;
   role: 'teacher' | 'student';
+  idNumber?: string;
+  studentLevel?: 'elementary' | 'junior_high' | 'senior_high' | 'college';
+  phone?: string;
+  office?: string;
+  createdAt?: number;
 }
 
 interface AuthContextType {

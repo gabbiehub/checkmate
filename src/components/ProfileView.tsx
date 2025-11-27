@@ -26,6 +26,7 @@ import { PrivacySecurityDialog } from "@/components/PrivacySecurityDialog";
 import { HelpSupportDialog } from "@/components/HelpSupportDialog";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ProfileViewProps {
   onSignOut?: () => void;
@@ -33,26 +34,34 @@ interface ProfileViewProps {
 
 export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showPrivacySecurity, setShowPrivacySecurity] = useState(false);
   const [showHelpSupport, setShowHelpSupport] = useState(false);
+  
+  if (!user) {
+    return null;
+  }
+
+  // Format join date
+  const joinDate = user.createdAt 
+    ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : 'N/A';
+
+  // Get user initials
+  const initials = user.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
   
   const handleImageUpload = () => {
     toast({
       title: "Upload Photo",
       description: "Photo upload feature coming soon!",
     });
-  };
-
-  const profileData = {
-    name: "Prof. John Smith",
-    email: "john.smith@university.edu",
-    phone: "+1 (555) 123-4567",
-    department: "Computer Science",
-    office: "Room 204, CS Building",
-    employeeId: "CS2024001",
-    joinDate: "August 2020"
   };
 
   const preferences = [
@@ -87,7 +96,7 @@ export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
               <Avatar className="w-20 h-20">
                 <AvatarImage src="/placeholder.svg" alt="Profile" />
                 <AvatarFallback className="text-lg font-semibold bg-primary text-primary-foreground">
-                  JS
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <Button 
@@ -100,56 +109,70 @@ export const ProfileView = ({ onSignOut }: ProfileViewProps) => {
               </Button>
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-foreground mb-1">{profileData.name}</h2>
-              <p className="text-muted-foreground mb-2">{profileData.department}</p>
-              <Badge variant="outline">Teacher</Badge>
+              <h2 className="text-xl font-semibold text-foreground mb-1">{user.name}</h2>
+              <Badge variant="outline">{user.role === 'teacher' ? 'Teacher' : 'Student'}</Badge>
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="grid gap-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <div className="flex">
-                  <Mail className="w-4 h-4 mt-3 mr-3 text-muted-foreground" />
-                  <Input id="email" value={profileData.email} readOnly />
+                <Label className="text-sm font-medium text-muted-foreground">Email Address</Label>
+                <div className="flex items-center">
+                  <Mail className="w-4 h-4 mr-3 text-muted-foreground" />
+                  <span className="text-foreground">{user.email}</span>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <div className="flex">
-                  <Phone className="w-4 h-4 mt-3 mr-3 text-muted-foreground" />
-                  <Input id="phone" value={profileData.phone} readOnly />
+                <Label className="text-sm font-medium text-muted-foreground">Phone Number</Label>
+                <div className="flex items-center">
+                  <Phone className="w-4 h-4 mr-3 text-muted-foreground" />
+                  <span className="text-foreground">{user.phone || 'Not provided'}</span>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="office">Office Location</Label>
-                <div className="flex">
-                  <MapPin className="w-4 h-4 mt-3 mr-3 text-muted-foreground" />
-                  <Input id="office" value={profileData.office} readOnly />
+              {user.role === 'teacher' && user.office && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Office Location</Label>
+                  <div className="flex items-center">
+                    <MapPin className="w-4 h-4 mr-3 text-muted-foreground" />
+                    <span className="text-foreground">{user.office}</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </Card>
 
-        {/* Employment Details */}
+        {/* Employment/Student Details */}
         <Card className="p-4 shadow-card">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Employment Details</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-4">
+            {user.role === 'teacher' ? 'Employment Details' : 'Student Details'}
+          </h3>
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Employee ID</span>
-              <span className="font-medium text-foreground">{profileData.employeeId}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Department</span>
-              <span className="font-medium text-foreground">{profileData.department}</span>
-            </div>
+            {user.idNumber && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  {user.role === 'student' ? 'Student ID' : 'Employee ID'}
+                </span>
+                <span className="font-medium text-foreground">{user.idNumber}</span>
+              </div>
+            )}
+            {user.role === 'student' && user.studentLevel && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Level</span>
+                <span className="font-medium text-foreground">
+                  {user.studentLevel === 'elementary' && 'Elementary'}
+                  {user.studentLevel === 'junior_high' && 'Junior High'}
+                  {user.studentLevel === 'senior_high' && 'Senior High'}
+                  {user.studentLevel === 'college' && 'College'}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Join Date</span>
-              <span className="font-medium text-foreground">{profileData.joinDate}</span>
+              <span className="font-medium text-foreground">{joinDate}</span>
             </div>
           </div>
         </Card>

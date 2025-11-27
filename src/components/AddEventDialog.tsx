@@ -7,10 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 interface AddEventDialogProps {
   open: boolean;
@@ -19,34 +22,68 @@ interface AddEventDialogProps {
 
 export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [date, setDate] = useState<Date>();
   const [formData, setFormData] = useState({
     title: "",
-    type: "",
-    meetingType: "",
-    time: "",
-    location: "",
     description: "",
-    class: ""
+    classId: ""
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const createEvent = useMutation(api.eventsAndReminders.createEvent);
+  
+  const teacherClasses = useQuery(
+    api.classes.getTeacherClasses,
+    user?.role === 'teacher' && user ? { teacherId: user.userId } : "skip"
+  );
+  
+  const studentClasses = useQuery(
+    api.classes.getStudentClasses,
+    user?.role === 'student' && user ? { studentId: user.userId } : "skip"
+  );
+
+  const userClasses = user?.role === 'teacher' ? teacherClasses : studentClasses;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Event Created",
-      description: "Your event has been added to the calendar.",
-    });
-    onOpenChange(false);
-    setFormData({
-      title: "",
-      type: "",
-      meetingType: "",
-      time: "",
-      location: "",
-      description: "",
-      class: ""
-    });
-    setDate(undefined);
+    
+    if (!user || !date || !formData.classId) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await createEvent({
+        title: formData.title,
+        description: formData.description || undefined,
+        date: format(date, 'yyyy-MM-dd'),
+        classId: formData.classId as any,
+        createdBy: user.userId,
+      });
+
+      toast({
+        title: "Event Created",
+        description: "Your event has been added to the calendar.",
+      });
+      
+      onOpenChange(false);
+      setFormData({
+        title: "",
+        description: "",
+        classId: ""
+      });
+      setDate(undefined);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create event",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -73,36 +110,26 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="type">Event Type</Label>
-            <Select value={formData.type} onValueChange={(value) => handleInputChange("type", value)}>
+            <Label htmlFor="class">Class</Label>
+            <Select value={formData.classId} onValueChange={(value) => handleInputChange("classId", value)} required>
               <SelectTrigger>
-                <SelectValue placeholder="Select event type" />
+                <SelectValue placeholder="Select a class" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="class">Class Session</SelectItem>
-                <SelectItem value="exam">Exam</SelectItem>
-                <SelectItem value="meeting">Meeting</SelectItem>
-                <SelectItem value="assignment">Assignment Due</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                {userClasses && userClasses.length > 0 ? (
+                  userClasses.map((cls: any) => (
+                    <SelectItem key={cls._id} value={cls._id}>
+                      {cls.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-classes" disabled>
+                    No classes available
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
-
-          {formData.type === "class" && (
-            <div className="space-y-2">
-              <Label htmlFor="meetingType">Session Type</Label>
-              <Select value={formData.meetingType} onValueChange={(value) => handleInputChange("meetingType", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select session type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="face-to-face">Face-to-Face</SelectItem>
-                  <SelectItem value="online">Online Meeting</SelectItem>
-                  <SelectItem value="asynchronous">Asynchronous</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           <div className="space-y-2">
             <Label>Date</Label>
@@ -131,49 +158,10 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="time">Time</Label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="time"
-                type="time"
-                value={formData.time}
-                onChange={(e) => handleInputChange("time", e.target.value)}
-                className="pl-10"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
-            <Input
-              id="location"
-              placeholder="Enter location"
-              value={formData.location}
-              onChange={(e) => handleInputChange("location", e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="class">Class (Optional)</Label>
-            <Select value={formData.class} onValueChange={(value) => handleInputChange("class", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select class" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="math-101">Math 101 - Algebra</SelectItem>
-                <SelectItem value="math-201">Math 201 - Calculus</SelectItem>
-                <SelectItem value="math-301">Math 301 - Statistics</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Description (Optional)</Label>
             <Textarea
               id="description"
-              placeholder="Enter event description"
+              placeholder="Add event details or location"
               value={formData.description}
               onChange={(e) => handleInputChange("description", e.target.value)}
               rows={3}

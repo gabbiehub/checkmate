@@ -1,5 +1,6 @@
 import { Home, BookOpen, Calendar, BarChart3, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BottomNavProps {
   activeTab?: string;
@@ -7,18 +8,25 @@ interface BottomNavProps {
 }
 
 export const BottomNav = ({ activeTab = "home", onTabChange }: BottomNavProps) => {
+  const { user } = useAuth();
+  
   const navItems = [
     { id: "home", label: "Home", icon: Home },
     { id: "classes", label: "Classes", icon: BookOpen },
     { id: "calendar", label: "Calendar", icon: Calendar },
-    { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "analytics", label: "Analytics", icon: BarChart3, teacherOnly: true },
     { id: "profile", label: "Profile", icon: User },
   ];
+
+  // Filter out teacher-only items for students
+  const filteredNavItems = navItems.filter(item => 
+    !item.teacherOnly || user?.role === 'teacher'
+  );
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
       <div className="flex items-center justify-around py-2 px-4 max-w-md mx-auto">
-        {navItems.map(({ id, label, icon: Icon }) => (
+        {filteredNavItems.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => onTabChange?.(id)}

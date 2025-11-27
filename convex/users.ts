@@ -55,6 +55,9 @@ export const updateUser = mutation({
     userId: v.id("users"),
     name: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    office: v.optional(v.string()),
+    // Note: idNumber and studentLevel are intentionally excluded - they cannot be updated
   },
   handler: async (ctx, args) => {
     const { userId, ...updates } = args;

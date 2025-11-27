@@ -11,6 +11,13 @@ export const signUp = mutation({
     password: v.string(), // In production, hash this!
     name: v.string(),
     role: v.union(v.literal("teacher"), v.literal("student")),
+    idNumber: v.optional(v.string()),
+    studentLevel: v.optional(v.union(
+      v.literal("elementary"),
+      v.literal("junior_high"),
+      v.literal("senior_high"),
+      v.literal("college")
+    )),
   },
   handler: async (ctx, args) => {
     // Check if user already exists
@@ -23,12 +30,16 @@ export const signUp = mutation({
       throw new Error("User with this email already exists");
     }
 
+    const now = Date.now();
+
     // Create new user
     const userId = await ctx.db.insert("users", {
       email: args.email,
       name: args.name,
       role: args.role,
-      createdAt: Date.now(),
+      createdAt: now,
+      idNumber: args.idNumber,
+      studentLevel: args.studentLevel,
     });
 
     // In production, you'd create a session token here
@@ -37,6 +48,9 @@ export const signUp = mutation({
       email: args.email,
       name: args.name,
       role: args.role,
+      idNumber: args.idNumber,
+      studentLevel: args.studentLevel,
+      createdAt: now,
     };
   },
 });
@@ -52,9 +66,7 @@ export const signIn = mutation({
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
-
-    if (!user) {
+      .first();    if (!user) {
       throw new Error("Invalid email or password");
     }
 
@@ -66,6 +78,11 @@ export const signIn = mutation({
       email: user.email,
       name: user.name,
       role: user.role,
+      idNumber: user.idNumber,
+      studentLevel: user.studentLevel,
+      phone: user.phone,
+      office: user.office,
+      createdAt: user.createdAt,
     };
   },
 });
