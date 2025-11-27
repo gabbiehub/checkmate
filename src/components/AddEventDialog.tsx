@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 interface AddEventDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  classId?: string; // Optional pre-selected class ID
 }
 
-export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
+export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId }: AddEventDialogProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,7 +31,7 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
     title: "",
     description: "",
     time: "",
-    classId: "",
+    classId: preSelectedClassId || "",
     eventType: "other",
     classType: "",
     eventScope: "class", // "class" or "personal"
@@ -49,6 +50,13 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
   );
 
   const userClasses = user?.role === 'teacher' ? teacherClasses : studentClasses;
+
+  // Update classId when preSelectedClassId changes or dialog opens
+  useEffect(() => {
+    if (open && preSelectedClassId) {
+      setFormData(prev => ({ ...prev, classId: preSelectedClassId }));
+    }
+  }, [open, preSelectedClassId]);
 
   const eventTypes = [
     { value: "exam", label: "Exam", icon: GraduationCap },
@@ -123,7 +131,7 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
       title: "",
       description: "",
       time: "",
-      classId: "",
+      classId: preSelectedClassId || "",
       eventType: "other",
       classType: "",
       eventScope: "class",
@@ -201,28 +209,39 @@ export const AddEventDialog = ({ open, onOpenChange }: AddEventDialogProps) => {
               <Label htmlFor="class">
                 {user?.role === 'teacher' ? 'Class *' : 'Related Class (Optional)'}
               </Label>
-              <Select 
-                value={formData.classId} 
-                onValueChange={(value) => handleInputChange("classId", value)}
-                required={user?.role === 'teacher' && formData.eventScope === 'class'}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a class" />
-                </SelectTrigger>
-                <SelectContent>
-                  {userClasses && userClasses.length > 0 ? (
-                    userClasses.map((cls: any) => (
-                      <SelectItem key={cls._id} value={cls._id}>
-                        {cls.name}
+              {preSelectedClassId ? (
+                // Show read-only class name when pre-selected
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    {userClasses?.find((cls: any) => cls._id === preSelectedClassId)?.name || "Selected Class"}
+                  </span>
+                </div>
+              ) : (
+                // Show dropdown when no pre-selection
+                <Select 
+                  value={formData.classId} 
+                  onValueChange={(value) => handleInputChange("classId", value)}
+                  required={user?.role === 'teacher' && formData.eventScope === 'class'}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userClasses && userClasses.length > 0 ? (
+                      userClasses.map((cls: any) => (
+                        <SelectItem key={cls._id} value={cls._id}>
+                          {cls.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-classes" disabled>
+                        No classes available
                       </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-classes" disabled>
-                      No classes available
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           ) : null}
 

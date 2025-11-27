@@ -22,12 +22,12 @@ export default defineSchema({
     office: v.optional(v.string()),
   })
     .index("by_email", ["email"])
-    .index("by_role", ["role"]),
-  classes: defineTable({
+    .index("by_role", ["role"]),  classes: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
     teacherId: v.id("users"),
     code: v.string(), // Join code
+    schedule: v.optional(v.string()), // Schedule string like "MWF 10:00 AM"
     createdAt: v.number(),
     // Seating chart configuration
     seatingRows: v.optional(v.number()),

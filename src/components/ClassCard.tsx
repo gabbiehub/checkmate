@@ -7,12 +7,14 @@ interface ClassCardProps {
   id: number;
   name: string;
   code: string;
+  description?: string;
+  schedule?: string;
   students: number;
   attendance: number;
   onClick?: () => void;
 }
 
-export const ClassCard = ({ name, code, students, attendance, onClick }: ClassCardProps) => {
+export const ClassCard = ({ name, code, description, schedule, students, attendance, onClick }: ClassCardProps) => {
   const getAttendanceColor = (percentage: number) => {
     if (percentage >= 90) return "bg-green-500";
     if (percentage >= 80) return "bg-yellow-500";
@@ -23,10 +25,12 @@ export const ClassCard = ({ name, code, students, attendance, onClick }: ClassCa
     <Card className="p-4 shadow-card hover:shadow-soft transition-shadow cursor-pointer" onClick={onClick}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <h3 className="font-semibold text-foreground mb-1">{name}</h3>
-          <Badge variant="outline" className="text-xs">
-            {code}
-          </Badge>
+          <h3 className="font-semibold text-foreground mb-1">
+            {description || name}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {name}{schedule && ` • ${schedule}`}
+          </p>
         </div>
         <Button variant="ghost" size="sm" className="p-2">
           <ChevronRight className="w-4 h-4" />

@@ -66,6 +66,18 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
     !r.completed && r.dueDate <= tomorrowStr
   ).sort((a, b) => a.dueDate.localeCompare(b.dueDate)) || [];
   
+  // Sort today's events by time (chronological order)
+  const sortedTodayEvents = todayEvents?.sort((a, b) => {
+    // Events with time come first, sorted by time
+    if (a.time && b.time) {
+      return a.time.localeCompare(b.time);
+    }
+    if (a.time && !b.time) return -1;
+    if (!a.time && b.time) return 1;
+    // If neither has time, sort by title
+    return a.title.localeCompare(b.title);
+  }) || [];
+  
   // Count unread notifications (overdue reminders + today's events)
   const notificationCount = (upcomingReminders.filter(r => r.dueDate < todayStr).length) + 
     (todayEvents?.length || 0);
@@ -140,19 +152,32 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
             <h2 className="text-lg font-semibold text-foreground">Today's Schedule</h2>
             <Clock className="w-5 h-5 text-muted-foreground" />
           </div>
-          {todayEvents && todayEvents.length > 0 ? (
+          {sortedTodayEvents && sortedTodayEvents.length > 0 ? (
             <div className="space-y-3">
-              {todayEvents.map((event) => (
-                <div key={event._id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-primary rounded-full"></div>
-                    <div>
+              {sortedTodayEvents.map((event) => (
+                <div key={event._id} className="flex items-start justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-start gap-3 flex-1">
+                    {event.time ? (
+                      <div className="text-sm font-semibold text-primary min-w-[60px]">
+                        {event.time}
+                      </div>
+                    ) : (
+                      <div className="w-2 h-2 bg-primary rounded-full mt-1.5"></div>
+                    )}
+                    <div className="flex-1">
                       <p className="font-medium text-foreground">{event.title}</p>
                       <p className="text-sm text-muted-foreground">{event.className}</p>
+                      {event.classType && (
+                        <Badge variant="outline" className="text-xs mt-1">
+                          {event.classType === "in-person" ? "In-Person" : 
+                           event.classType === "online" ? "Online" : 
+                           "Async"}
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                  <Badge variant="secondary">
-                    event
+                  <Badge variant="secondary" className="ml-2">
+                    {event.eventType || "event"}
                   </Badge>
                 </div>
               ))}
@@ -184,6 +209,8 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
                 id={0}
                 name={classItem.name}
                 code={classItem.code}
+                description={classItem.description}
+                schedule={classItem.schedule}
                 students={classItem.studentCount}
                 attendance={90}
                 onClick={() => onClassSelect?.(classItem._id)}

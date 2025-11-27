@@ -66,6 +66,7 @@ export const createClass = mutation({
     description: v.optional(v.string()),
     teacherId: v.id("users"),
     code: v.optional(v.string()),
+    schedule: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Use provided code or generate a random 6-character join code
@@ -86,6 +87,7 @@ export const createClass = mutation({
       description: args.description,
       teacherId: args.teacherId,
       code,
+      schedule: args.schedule,
       createdAt: Date.now(),
       seatingRows: 6,
       seatingCols: 8,

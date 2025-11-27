@@ -104,9 +104,7 @@ export const getEventsInRange = query({
       classes = (await Promise.all(
         memberships.map((m) => ctx.db.get(m.classId))
       )).filter((c) => c !== null);
-    }
-
-    const allEvents = [];
+    }    const allEvents = [];
     for (const classInfo of classes) {
       if (!classInfo) continue;
       
@@ -117,7 +115,13 @@ export const getEventsInRange = query({
       
       // Filter by date range and enrich with class info
       const filteredEvents = events
-        .filter((event) => event.date >= args.startDate && event.date <= args.endDate)
+        .filter((event) => {
+          // For students, only include class-wide events
+          if (user.role === "student" && event.isPersonal) {
+            return false;
+          }
+          return event.date >= args.startDate && event.date <= args.endDate;
+        })
         .map((event) => ({
           ...event,
           className: classInfo.name,
@@ -126,7 +130,24 @@ export const getEventsInRange = query({
       allEvents.push(...filteredEvents);
     }
 
-    return allEvents;
+    // Get personal events for this user
+    const personalEvents = await ctx.db
+      .query("events")
+      .withIndex("by_creator", (q) => q.eq("createdBy", args.userId))
+      .collect();
+    
+    const filteredPersonalEvents = personalEvents
+      .filter((event) => 
+        event.isPersonal && 
+        event.date >= args.startDate && 
+        event.date <= args.endDate
+      )
+      .map((event) => ({
+        ...event,
+        className: "Personal",
+      }));
+
+    return [...allEvents, ...filteredPersonalEvents];
   },
 });
 
@@ -134,10 +155,23 @@ export const getEventsInRange = query({
 export const getClassEvents = query({
   args: { classId: v.id("classes") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const classInfo = await ctx.db.get(args.classId);
+    if (!classInfo) {
+      return [];
+    }
+
+    const events = await ctx.db
       .query("events")
       .withIndex("by_class", (q) => q.eq("classId", args.classId))
       .collect();
+
+    // Filter out personal events - only show class-wide events
+    const classWideEvents = events.filter((event) => !event.isPersonal);
+
+    return classWideEvents.map((event) => ({
+      ...event,
+      className: classInfo.name,
+    }));
   },
 });
 
@@ -193,6 +227,85 @@ export const createEvent = mutation({
       isPersonal: args.isPersonal || false, // Default to false if not provided
       createdAt: Date.now(),
     });
+  },
+});
+
+// Update an event
+export const updateEvent = mutation({
+  args: {
+    eventId: v.id("events"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    date: v.optional(v.string()),
+    time: v.optional(v.string()),
+    eventType: v.optional(v.union(
+      v.literal("exam"),
+      v.literal("activity"),
+      v.literal("class"),
+      v.literal("deadline"),
+      v.literal("other")
+    )),
+    classType: v.optional(v.union(
+      v.literal("in-person"),
+      v.literal("online"),
+      v.literal("async")
+    )),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.eventId);
+    if (!event) {
+      throw new Error("Event not found");
+    }
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Check if user has permission to update this event
+    if (event.createdBy !== args.userId) {
+      throw new Error("You don't have permission to update this event");
+    }
+
+    // Build update object with only provided fields
+    const updates: any = {};
+    if (args.title !== undefined) updates.title = args.title;
+    if (args.description !== undefined) updates.description = args.description;
+    if (args.date !== undefined) updates.date = args.date;
+    if (args.time !== undefined) updates.time = args.time;
+    if (args.eventType !== undefined) updates.eventType = args.eventType;
+    if (args.classType !== undefined) updates.classType = args.classType;
+
+    await ctx.db.patch(args.eventId, updates);
+    return { success: true };
+  },
+});
+
+// Delete an event
+export const deleteEvent = mutation({
+  args: {
+    eventId: v.id("events"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.eventId);
+    if (!event) {
+      throw new Error("Event not found");
+    }
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Check if user has permission to delete this event
+    if (event.createdBy !== args.userId) {
+      throw new Error("You don't have permission to delete this event");
+    }
+
+    await ctx.db.delete(args.eventId);
+    return { success: true };
   },
 });
 

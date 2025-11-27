@@ -17,7 +17,9 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Edit,
+  Trash2
 } from "lucide-react";
 import { SeatingChart } from "./SeatingChart";
 import { StudentList } from "./StudentList";
@@ -26,12 +28,13 @@ import { ClassSettingsDialog } from "./ClassSettingsDialog";
 import { QRCodeDialog } from "./QRCodeDialog";
 import { AddReminderDialog } from "./AddReminderDialog";
 import { AddEventDialog } from "./AddEventDialog";
+import { EditEventDialog } from "./EditEventDialog";
 import { Id } from "../../convex/_generated/dataModel";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 interface ClassViewProps {
   classId: string;
@@ -46,7 +49,10 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
   const [showQRCode, setShowQRCode] = useState(false);
   const [showAddReminder, setShowAddReminder] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showEditEvent, setShowEditEvent] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
   
   const todayDate = format(new Date(), 'yyyy-MM-dd');
   
@@ -59,9 +65,15 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
     date: todayDate 
   });
   
+  // Fetch class events
+  const classEvents = useQuery(api.eventsAndReminders.getClassEvents, {
+    classId: classId as Id<"classes">
+  });
+  
   // Mutations
   const markAttendance = useMutation(api.classes.markAttendance);
   const markAllAttendance = useMutation(api.classes.markAllAttendance);
+  const deleteEvent = useMutation(api.eventsAndReminders.deleteEvent);
   
   if (!classData || !user) {
     return (
@@ -131,6 +143,38 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
     }
   };
 
+  const handleEditEvent = (event: any) => {
+    setSelectedEvent(event);
+    setShowEditEvent(true);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!confirm("Are you sure you want to delete this event?")) {
+      return;
+    }
+
+    setIsDeletingEvent(true);
+    try {
+      await deleteEvent({
+        eventId: eventId as Id<"events">,
+        userId: user.userId,
+      });
+
+      toast({
+        title: "Event Deleted",
+        description: "Event has been removed successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete event",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingEvent(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
@@ -145,9 +189,11 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">{classData.name}</h1>
+            <h1 className="text-xl font-bold">
+              {classData.description || classData.name}
+            </h1>
             <p className="text-primary-foreground/80 text-sm">
-              {classData.code} {classData.description ? `• ${classData.description}` : ''}
+              {classData.name}{classData.schedule && ` • ${classData.schedule}`}
             </p>
           </div>
           <Button 
@@ -220,8 +266,9 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
       {/* Content Tabs */}
       <div className="px-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-3 w-full bg-muted">
+          <TabsList className="grid grid-cols-4 w-full bg-muted">
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="seating">Seating</TabsTrigger>
             <TabsTrigger value="students">Students</TabsTrigger>
           </TabsList>
@@ -393,6 +440,83 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="events" className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-foreground">Class Events</h3>
+              <Button size="sm" onClick={() => setShowAddEvent(true)}>
+                <Calendar className="w-4 h-4 mr-2" />
+                Add Event
+              </Button>
+            </div>
+
+            {classEvents && classEvents.length > 0 ? (
+              <div className="space-y-3">
+                {classEvents
+                  .sort((a, b) => b.date.localeCompare(a.date))
+                  .map((event) => (
+                    <Card key={event._id} className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium text-foreground">{event.title}</h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {event.eventType || "event"}
+                            </Badge>
+                            {event.classType && (
+                              <Badge variant="outline" className="text-xs">
+                                {event.classType === "in-person" ? "In-Person" : 
+                                 event.classType === "online" ? "Online" : 
+                                 "Async"}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-1 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-3 h-3" />
+                              <span>{format(parseISO(event.date), 'MMMM d, yyyy')}</span>
+                              {event.time && <span>• {event.time}</span>}
+                            </div>
+                            
+                            {event.description && (
+                              <p className="text-sm mt-2">{event.description}</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditEvent(event)}
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteEvent(event._id)}
+                            disabled={isDeletingEvent}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+              </div>
+            ) : (
+              <Card className="p-6 text-center">
+                <Calendar className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-muted-foreground mb-3">No events scheduled yet</p>
+                <Button size="sm" onClick={() => setShowAddEvent(true)}>
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Create Your First Event
+                </Button>
+              </Card>
+            )}
+          </TabsContent>
+
           <TabsContent value="seating" className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-foreground">Classroom Layout</h3>
@@ -429,6 +553,12 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
       <AddEventDialog 
         open={showAddEvent} 
         onOpenChange={setShowAddEvent}
+        classId={classId}
+      />
+      <EditEventDialog 
+        open={showEditEvent} 
+        onOpenChange={setShowEditEvent}
+        event={selectedEvent}
       />
     </div>
   );

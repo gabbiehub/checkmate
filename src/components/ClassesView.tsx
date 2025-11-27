@@ -163,21 +163,17 @@ export const ClassesView = ({ userType = 'teacher', onClassSelect, onNewClass, o
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground">{classItem.name}</h3>
+                        <h3 className="font-semibold text-foreground">{classItem.description || classItem.name}</h3>
                         <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-1">{classItem.code}</p>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        {classItem.name}{classItem.schedule && ` • ${classItem.schedule}`}
+                      </p>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Users className="w-3 h-3" />
                           {classItem.studentCount || 0} students
                         </div>
-                        {classItem.description && (
-                          <div className="flex items-center gap-1">
-                            <BookOpen className="w-3 h-3" />
-                            {classItem.description}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>

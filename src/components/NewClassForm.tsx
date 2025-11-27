@@ -71,6 +71,7 @@ export const NewClassForm = ({ onBack, onClassCreated }: NewClassFormProps) => {
         description: formData.description || formData.subject,
         teacherId: user.userId,
         code: formData.code.trim() || undefined, // Pass custom code if provided
+        schedule: formData.schedule.trim() || undefined, // Pass schedule if provided
       });
 
       toast({

@@ -21,6 +21,10 @@ interface Event {
   classId: string;
   createdBy: string;
   createdAt: number;
+  eventType?: "exam" | "activity" | "class" | "deadline" | "other";
+  classType?: "in-person" | "online" | "async";
+  time?: string;
+  isPersonal: boolean;
 }
 
 export const CalendarView = () => {
@@ -226,7 +230,7 @@ export const CalendarView = () => {
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-medium text-foreground">{event.title}</h3>
                         <Badge variant="default" className="text-xs">
-                          Event
+                          {event.eventType || "event"}
                         </Badge>
                       </div>
                       
@@ -234,6 +238,9 @@ export const CalendarView = () => {
                         <div className="flex items-center gap-2">
                           <Clock className="w-3 h-3" />
                           <span>{format(parseISO(event.date), 'MMMM d, yyyy')}</span>
+                          {event.time && (
+                            <span className="text-xs">• {event.time}</span>
+                          )}
                         </div>
                         {event.description && (
                           <div className="flex items-center gap-2">
@@ -244,6 +251,13 @@ export const CalendarView = () => {
                         <div className="flex items-center gap-2">
                           <Users className="w-3 h-3" />
                           <span>{event.className}</span>
+                          {event.classType && (
+                            <Badge variant="outline" className="text-xs">
+                              {event.classType === "in-person" ? "In-Person" : 
+                               event.classType === "online" ? "Online" : 
+                               "Async"}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -270,10 +284,24 @@ export const CalendarView = () => {
                 <Card key={event._id} className="p-4 shadow-card">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className="font-medium text-foreground">{event.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {format(parseISO(event.date), 'MMM d, yyyy')} • {event.className}
-                      </p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-medium text-foreground">{event.title}</h3>
+                        <Badge variant="secondary" className="text-xs">
+                          {event.eventType || "event"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span>{format(parseISO(event.date), 'MMM d, yyyy')}</span>
+                        {event.time && <span>• {event.time}</span>}
+                        <span>• {event.className}</span>
+                        {event.classType && (
+                          <Badge variant="outline" className="text-xs">
+                            {event.classType === "in-person" ? "In-Person" : 
+                             event.classType === "online" ? "Online" : 
+                             "Async"}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <Button 
                       variant="ghost" 
@@ -336,12 +364,22 @@ export const CalendarView = () => {
           </DialogHeader>
           {selectedEvent && (
             <div className="space-y-4">
-              <Badge variant="default">Event</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="default">{selectedEvent.eventType || "event"}</Badge>
+                {selectedEvent.classType && (
+                  <Badge variant="outline">
+                    {selectedEvent.classType === "in-person" ? "In-Person" : 
+                     selectedEvent.classType === "online" ? "Online" : 
+                     "Async"}
+                  </Badge>
+                )}
+              </div>
               
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="w-4 h-4 text-muted-foreground" />
                   <span>{format(parseISO(selectedEvent.date), 'MMMM d, yyyy')}</span>
+                  {selectedEvent.time && <span className="text-muted-foreground">• {selectedEvent.time}</span>}
                 </div>
                 {selectedEvent.description && (
                   <div className="flex items-start gap-2 text-sm">

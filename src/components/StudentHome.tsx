@@ -33,12 +33,34 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
     user ? { userId: user.userId } : "skip"
   );
 
-  // Get upcoming reminders (next 7 days)
+  // Fetch today's events
   const todayStr = new Date().toISOString().split('T')[0];
+  const todayEvents = useQuery(
+    api.eventsAndReminders.getEventsInRange,
+    user ? { 
+      userId: user.userId,
+      startDate: todayStr,
+      endDate: todayStr,
+    } : "skip"
+  );
+
+  // Get upcoming reminders (next 7 days)
   const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
   const upcomingReminders = reminders?.filter(r => 
     !r.completed && r.dueDate >= todayStr && r.dueDate <= weekFromNow
   ).sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 3) || [];
+
+  // Sort today's events by time (chronological order)
+  const sortedTodayEvents = todayEvents?.sort((a, b) => {
+    // Events with time come first, sorted by time
+    if (a.time && b.time) {
+      return a.time.localeCompare(b.time);
+    }
+    if (a.time && !b.time) return -1;
+    if (!a.time && b.time) return 1;
+    // If neither has time, sort by title
+    return a.title.localeCompare(b.title);
+  }) || [];
 
   const notificationCount = reminders?.filter(r => !r.completed && r.dueDate <= todayStr).length || 0;
 
@@ -108,7 +130,7 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
           />
         </div>
 
-        {/* Today's Schedule - Placeholder for now */}
+        {/* Today's Schedule */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -117,7 +139,39 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-center text-muted-foreground py-4">No classes scheduled for today</p>
+            {sortedTodayEvents && sortedTodayEvents.length > 0 ? (
+              <div className="space-y-3">
+                {sortedTodayEvents.map((event) => (
+                  <div key={event._id} className="flex items-start justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-start gap-3 flex-1">
+                      {event.time ? (
+                        <div className="text-sm font-semibold text-primary min-w-[60px]">
+                          {event.time}
+                        </div>
+                      ) : (
+                        <div className="w-2 h-2 bg-primary rounded-full mt-1.5"></div>
+                      )}
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">{event.title}</p>
+                        <p className="text-sm text-muted-foreground">{event.className}</p>
+                        {event.classType && (
+                          <Badge variant="outline" className="text-xs mt-1">
+                            {event.classType === "in-person" ? "In-Person" : 
+                             event.classType === "online" ? "Online" : 
+                             "Async"}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="ml-2">
+                      {event.eventType || "event"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No events scheduled for today</p>
+            )}
           </CardContent>
         </Card>
 
@@ -139,24 +193,18 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
                 className="p-4 border rounded-xl hover:bg-accent/50 transition-colors cursor-pointer"
                 onClick={() => onClassSelect?.(cls._id)}
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3 flex-1">
                     <div className="w-4 h-4 rounded bg-primary" />
                     <div>
-                      <h3 className="font-semibold">{cls.name}</h3>
-                      <p className="text-sm text-muted-foreground">{cls.code}</p>
+                      <h3 className="font-semibold">{cls.description || cls.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {cls.name}{cls.schedule && ` • ${cls.schedule}`}
+                      </p>
                     </div>
                   </div>
                   <Badge variant="secondary">{cls.studentCount || 0} students</Badge>
                 </div>
-                
-                {cls.description && (
-                  <p className="text-sm text-muted-foreground mb-3">{cls.description}</p>
-                )}
-                
-                <Button variant="ghost" size="sm" className="w-full">
-                  View Class Details
-                </Button>
               </div>
             ))}
             {myClasses.length === 0 && (

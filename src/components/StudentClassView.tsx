@@ -121,8 +121,10 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">{classData.name}</h1>
-            <p className="text-sm text-muted-foreground">Code: {classData.code}</p>
+            <h1 className="text-xl font-bold">{classData.description || classData.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              {classData.name}{classData.schedule && ` • ${classData.schedule}`}
+            </p>
           </div>
           <Badge variant="outline">{classData.studentCount} students</Badge>
         </div>
