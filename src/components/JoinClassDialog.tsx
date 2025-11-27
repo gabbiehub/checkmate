@@ -6,6 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QrCode, Type } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 interface JoinClassDialogProps {
   open: boolean;
@@ -15,21 +18,49 @@ interface JoinClassDialogProps {
 
 export const JoinClassDialog = ({ open, onOpenChange, onClassJoined }: JoinClassDialogProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const joinClass = useMutation(api.classes.joinClass);
   const [classCode, setClassCode] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
 
-  const handleJoinByCode = (e: React.FormEvent) => {
+  const handleJoinByCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!classCode.trim()) return;
 
-    // Simulate joining class
-    toast({
-      title: "Class Joined!",
-      description: `Successfully joined class with code: ${classCode}`,
-    });
-    
-    onClassJoined?.(classCode);
-    onOpenChange(false);
-    setClassCode("");
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to join a class.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsJoining(true);
+
+    try {
+      const result = await joinClass({
+        code: classCode.trim().toUpperCase(),
+        studentId: user.userId,
+      });
+
+      toast({
+        title: "Class Joined!",
+        description: `Successfully joined ${result.name}`,
+      });
+      
+      onClassJoined?.(result._id);
+      onOpenChange(false);
+      setClassCode("");
+    } catch (error) {
+      toast({
+        title: "Error Joining Class",
+        description: error instanceof Error ? error.message : "Failed to join class",
+        variant: "destructive"
+      });
+    } finally {
+      setIsJoining(false);
+    }
   };
 
   const handleQRScan = () => {
@@ -73,8 +104,8 @@ export const JoinClassDialog = ({ open, onOpenChange, onClassJoined }: JoinClass
                 />
               </div>
               
-              <Button type="submit" className="w-full">
-                Join Class
+              <Button type="submit" className="w-full" disabled={isJoining}>
+                {isJoining ? "Joining..." : "Join Class"}
               </Button>
             </form>
             

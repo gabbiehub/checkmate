@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Save, Users, MapPin, Clock, BookOpen, Hash, Layout } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SeatPlanBuilder } from "./SeatPlanBuilder";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 interface NewClassFormProps {
   onBack: () => void;
@@ -16,6 +19,10 @@ interface NewClassFormProps {
 
 export const NewClassForm = ({ onBack, onClassCreated }: NewClassFormProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const createClass = useMutation(api.classes.createClass);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: "",
     code: "",
@@ -34,8 +41,9 @@ export const NewClassForm = ({ onBack, onClassCreated }: NewClassFormProps) => {
     setFormData(prev => ({ ...prev, code }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!formData.name || !formData.subject) {
       toast({
         title: "Required Fields Missing",
@@ -45,19 +53,42 @@ export const NewClassForm = ({ onBack, onClassCreated }: NewClassFormProps) => {
       return;
     }
 
-    // Generate class code if not provided
-    const finalCode = formData.code || Math.random().toString(36).substring(2, 8).toUpperCase();
-    
-    const seatCount = seatPlan ? seatPlan.rows * seatPlan.columns : 0;
-    
-    toast({
-      title: "Class Created Successfully!",
-      description: `${formData.name} has been created with code ${finalCode} and ${seatCount} seats`,
-    });
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to create a class.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    // Navigate to the newly created class view
-    const newClassId = Date.now().toString();
-    onClassCreated(newClassId);
+    setIsSubmitting(true);
+    
+    try {
+      // Create the class in Convex
+      const result = await createClass({
+        name: formData.name,
+        description: formData.description || formData.subject,
+        teacherId: user.userId,
+        code: formData.code.trim() || undefined, // Pass custom code if provided
+      });
+
+      toast({
+        title: "Class Created Successfully!",
+        description: `${formData.name} has been created with code ${result.code}`,
+      });
+
+      // Navigate to the newly created class view with the real Convex ID
+      onClassCreated(result.classId);
+    } catch (error) {
+      toast({
+        title: "Error Creating Class",
+        description: error instanceof Error ? error.message : "Failed to create class",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -211,12 +242,12 @@ export const NewClassForm = ({ onBack, onClassCreated }: NewClassFormProps) => {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={onBack} className="flex-1">
+              <Button type="button" variant="outline" onClick={onBack} className="flex-1" disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1">
+              <Button type="submit" className="flex-1" disabled={isSubmitting}>
                 <Save className="w-4 h-4 mr-2" />
-                Create Class
+                {isSubmitting ? "Creating..." : "Create Class"}
               </Button>
             </div>
           </form>

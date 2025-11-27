@@ -121,14 +121,8 @@ export const CalendarView = () => {
     },
   };
 
-  const modifiersStyles = {
-    hasEvent: {
-      fontWeight: 'bold',
-      textDecoration: 'underline',
-      textDecorationColor: 'hsl(var(--primary))',
-      textDecorationThickness: '2px',
-      color: 'hsl(var(--primary))',
-    },
+  const modifiersClassNames = {
+    hasEvent: "font-bold underline decoration-2",
   };
 
   if (!user) {
@@ -199,7 +193,7 @@ export const CalendarView = () => {
             onSelect={setSelectedDate}
             className="rounded-md"
             modifiers={modifiers}
-            modifiersStyles={modifiersStyles}
+            modifiersClassNames={modifiersClassNames}
           />
           <div className="mt-4 pt-4 border-t text-sm text-muted-foreground text-center">
             {eventDates.size > 0 ? (

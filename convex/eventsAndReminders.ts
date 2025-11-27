@@ -10,14 +10,29 @@ export const getUserEvents = query({
       return [];
     }
 
-    let classes: any[] = [];
+    let classEvents: any[] = [];
 
     if (user.role === "teacher") {
       // Get all classes taught by this teacher
-      classes = await ctx.db
+      const classes = await ctx.db
         .query("classes")
         .withIndex("by_teacher", (q) => q.eq("teacherId", args.userId))
         .collect();
+      
+      // Get all events for these classes
+      for (const classInfo of classes) {
+        const events = await ctx.db
+          .query("events")
+          .withIndex("by_class", (q) => q.eq("classId", classInfo._id))
+          .collect();
+        
+        const enrichedEvents = events.map((event) => ({
+          ...event,
+          className: classInfo.name,
+        }));
+        
+        classEvents.push(...enrichedEvents);
+      }
     } else {
       // Get all classes the student is enrolled in
       const memberships = await ctx.db
@@ -25,32 +40,38 @@ export const getUserEvents = query({
         .withIndex("by_student", (q) => q.eq("studentId", args.userId))
         .collect();
       
-      // Get class details for each membership
-      classes = (await Promise.all(
-        memberships.map((m) => ctx.db.get(m.classId))
-      )).filter((c) => c !== null);
-    }
-
-    // Get all events for these classes
-    const allEvents = [];
-    for (const classInfo of classes) {
-      if (!classInfo) continue;
-      
-      const events = await ctx.db
-        .query("events")
-        .withIndex("by_class", (q) => q.eq("classId", classInfo._id))
-        .collect();
-      
-      // Enrich events with class information
-      const enrichedEvents = events.map((event) => ({
+      // Get class details and events for each membership
+      for (const membership of memberships) {
+        const classInfo = await ctx.db.get(membership.classId);
+        if (!classInfo) continue;
+          const events = await ctx.db
+          .query("events")
+          .withIndex("by_class", (q) => q.eq("classId", classInfo._id))
+          .collect();
+        
+        const enrichedEvents = events
+          .filter((event) => !event.isPersonal) // Only non-personal (class-wide) events
+          .map((event) => ({
+            ...event,
+            className: classInfo.name,
+          }));
+        
+        classEvents.push(...enrichedEvents);
+      }
+    }    // Get personal events for this user
+    const personalEvents = await ctx.db
+      .query("events")
+      .withIndex("by_creator", (q) => q.eq("createdBy", args.userId))
+      .collect();
+    
+    const enrichedPersonalEvents = personalEvents
+      .filter((event) => event.isPersonal) // Only personal events
+      .map((event) => ({
         ...event,
-        className: classInfo.name,
+        className: "Personal",
       }));
-      
-      allEvents.push(...enrichedEvents);
-    }
 
-    return allEvents;
+    return [...classEvents, ...enrichedPersonalEvents];
   },
 });
 
@@ -123,19 +144,53 @@ export const getClassEvents = query({
 // Create an event
 export const createEvent = mutation({
   args: {
-    classId: v.id("classes"),
+    classId: v.optional(v.id("classes")),
     title: v.string(),
     description: v.optional(v.string()),
     date: v.string(),
+    time: v.optional(v.string()),
+    eventType: v.optional(v.union(
+      v.literal("exam"),
+      v.literal("activity"),
+      v.literal("class"),
+      v.literal("deadline"),
+      v.literal("other")
+    )),
+    classType: v.optional(v.union(
+      v.literal("in-person"),
+      v.literal("online"),
+      v.literal("async")
+    )),
     createdBy: v.id("users"),
+    isPersonal: v.boolean(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("events", {
+    const user = await ctx.db.get(args.createdBy);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // If it's a class event, verify the user has permission
+    if (args.classId && !args.isPersonal) {
+      const cls = await ctx.db.get(args.classId);
+      if (!cls) {
+        throw new Error("Class not found");
+      }
+      
+      // Only teachers can create class-wide events
+      if (user.role !== "teacher" || cls.teacherId !== args.createdBy) {
+        throw new Error("Only the class teacher can create class-wide events");
+      }
+    }    return await ctx.db.insert("events", {
       classId: args.classId,
       title: args.title,
       description: args.description,
       date: args.date,
+      time: args.time,
+      eventType: args.eventType,
+      classType: args.classType,
       createdBy: args.createdBy,
+      isPersonal: args.isPersonal || false, // Default to false if not provided
       createdAt: Date.now(),
     });
   },
@@ -145,10 +200,45 @@ export const createEvent = mutation({
 export const getUserReminders = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return [];
+    }    // Get personal reminders
+    const personalReminders = await ctx.db
       .query("reminders")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
+    
+    const filteredPersonalReminders = personalReminders.filter((r) => !r.isClassWide);
+
+    let classReminders: any[] = [];
+
+    if (user.role === "student") {
+      // Get all classes the student is enrolled in
+      const memberships = await ctx.db
+        .query("classMembers")
+        .withIndex("by_student", (q) => q.eq("studentId", args.userId))
+        .collect();      // Get class-wide reminders for each class
+      for (const membership of memberships) {
+        const reminders = await ctx.db
+          .query("reminders")
+          .withIndex("by_class", (q) => q.eq("classId", membership.classId))
+          .collect();
+        
+        const classWideReminders = reminders.filter((r) => r.isClassWide);
+        
+        const classInfo = await ctx.db.get(membership.classId);
+        
+        const enrichedReminders = classWideReminders.map((reminder) => ({
+          ...reminder,
+          className: classInfo?.name || "Unknown Class",
+        }));
+
+        classReminders.push(...enrichedReminders);
+      }
+    }
+
+    return [...filteredPersonalReminders, ...classReminders];
   },
 });
 
@@ -156,17 +246,36 @@ export const getUserReminders = query({
 export const createReminder = mutation({
   args: {
     userId: v.id("users"),
+    classId: v.optional(v.id("classes")),
     title: v.string(),
     description: v.optional(v.string()),
     dueDate: v.string(),
+    isClassWide: v.boolean(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("reminders", {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // If creating a class-wide reminder, verify teacher permission
+    if (args.isClassWide && args.classId) {
+      const cls = await ctx.db.get(args.classId);
+      if (!cls) {
+        throw new Error("Class not found");
+      }
+      
+      if (user.role !== "teacher" || cls.teacherId !== args.userId) {
+        throw new Error("Only the class teacher can create class-wide reminders");
+      }
+    }    return await ctx.db.insert("reminders", {
       userId: args.userId,
+      classId: args.classId,
       title: args.title,
       description: args.description,
       dueDate: args.dueDate,
       completed: false,
+      isClassWide: args.isClassWide || false, // Default to false if not provided
       createdAt: Date.now(),
     });
   },

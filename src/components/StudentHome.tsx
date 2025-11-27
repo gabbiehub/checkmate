@@ -4,9 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Bell, BookOpen, Clock, Users, TrendingUp, Calendar, QrCode } from "lucide-react";
+import { Bell, BookOpen, Clock, Users, TrendingUp, Calendar, QrCode, AlertCircle } from "lucide-react";
 import { StatsCard } from "@/components/StatsCard";
 import { NotificationsDialog } from "@/components/NotificationsDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { formatDistanceToNow } from "date-fns";
 
 interface StudentHomeProps {
   onClassSelect?: (classId: string) => void;
@@ -14,60 +18,37 @@ interface StudentHomeProps {
 }
 
 export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) => {
+  const { user } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications] = useState([
-    { id: 1, message: "Math 101 class starts in 30 minutes", type: "reminder" },
-    { id: 2, message: "Assignment due tomorrow for Physics", type: "assignment" }
-  ]);
 
-  const upcomingClasses = [
-    {
-      id: "1",
-      name: "Math 101",
-      instructor: "Dr. Johnson",
-      time: "09:00 AM",
-      room: "Room 205",
-      status: "upcoming"
-    },
-    {
-      id: "2", 
-      name: "Physics 201",
-      instructor: "Prof. Smith",
-      time: "11:30 AM", 
-      room: "Lab 3",
-      status: "upcoming"
-    }
-  ];
+  // Fetch real student classes
+  const myClasses = useQuery(
+    api.classes.getStudentClasses,
+    user ? { studentId: user.userId } : "skip"
+  );
 
-  const myClasses = [
-    {
-      id: "1",
-      name: "Math 101 - Algebra",
-      instructor: "Dr. Sarah Johnson",
-      schedule: "Mon, Wed, Fri - 9:00 AM",
-      attendance: 92,
-      nextClass: "Today at 9:00 AM",
-      color: "bg-blue-500"
-    },
-    {
-      id: "2",
-      name: "Physics 201 - Mechanics", 
-      instructor: "Prof. Michael Smith",
-      schedule: "Tue, Thu - 11:30 AM",
-      attendance: 88,
-      nextClass: "Tomorrow at 11:30 AM",
-      color: "bg-green-500"
-    },
-    {
-      id: "3",
-      name: "Chemistry 101",
-      instructor: "Dr. Emily Brown",
-      schedule: "Mon, Wed - 2:00 PM",
-      attendance: 95,
-      nextClass: "Wed at 2:00 PM",
-      color: "bg-purple-500"
-    }
-  ];
+  // Fetch reminders (includes class-wide reminders)
+  const reminders = useQuery(
+    api.eventsAndReminders.getUserReminders,
+    user ? { userId: user.userId } : "skip"
+  );
+
+  // Get upcoming reminders (next 7 days)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+  const upcomingReminders = reminders?.filter(r => 
+    !r.completed && r.dueDate >= todayStr && r.dueDate <= weekFromNow
+  ).sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 3) || [];
+
+  const notificationCount = reminders?.filter(r => !r.completed && r.dueDate <= todayStr).length || 0;
+
+  if (!user || !myClasses) {
+    return (
+      <div className="min-h-screen bg-background pb-20 flex items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -75,7 +56,7 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="flex items-center justify-between p-4">
           <div>
-            <h1 className="text-2xl font-bold">Good morning, Alex!</h1>
+            <h1 className="text-2xl font-bold">Good morning, {user.name.split(' ')[0]}!</h1>
             <p className="text-muted-foreground">Ready for another great day of learning?</p>
           </div>
           <div className="flex items-center gap-2">
@@ -86,9 +67,9 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
               onClick={() => setShowNotifications(true)}
             >
               <Bell className="w-5 h-5" />
-              {notifications.length > 0 && (
+              {notificationCount > 0 && (
                 <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs">
-                  {notifications.length}
+                  {notificationCount}
                 </Badge>
               )}
             </Button>
@@ -116,18 +97,18 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
         {/* Stats */}
         <div className="grid grid-cols-2 gap-4">
           <StatsCard
-            title="Overall Attendance"
-            value="92%"
-            icon={<TrendingUp className="w-5 h-5" />}
+            title="Active Classes"
+            value={myClasses.length.toString()}
+            icon={<BookOpen className="w-5 h-5" />}
           />
           <StatsCard
-            title="Active Classes"
-            value="3"
-            icon={<BookOpen className="w-5 h-5" />}
+            title="Total Students"
+            value={myClasses.reduce((sum, c) => sum + (c.studentCount || 0), 0).toString()}
+            icon={<Users className="w-5 h-5" />}
           />
         </div>
 
-        {/* Today's Schedule */}
+        {/* Today's Schedule - Placeholder for now */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -135,26 +116,8 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
               Today's Schedule
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {upcomingClasses.map((cls) => (
-              <div key={cls.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-primary rounded-full" />
-                  <div>
-                    <p className="font-medium">{cls.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {cls.instructor} • {cls.room}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium">{cls.time}</p>
-                  <Badge variant="secondary" className="text-xs">
-                    {cls.status}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+          <CardContent>
+            <p className="text-center text-muted-foreground py-4">No classes scheduled for today</p>
           </CardContent>
         </Card>
 
@@ -172,60 +135,105 @@ export const StudentHome = ({ onClassSelect, onJoinClass }: StudentHomeProps) =>
           <CardContent className="space-y-4">
             {myClasses.map((cls) => (
               <div
-                key={cls.id}
+                key={cls._id}
                 className="p-4 border rounded-xl hover:bg-accent/50 transition-colors cursor-pointer"
-                onClick={() => onClassSelect?.(cls.id)}
+                onClick={() => onClassSelect?.(cls._id)}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded ${cls.color}`} />
+                    <div className="w-4 h-4 rounded bg-primary" />
                     <div>
                       <h3 className="font-semibold">{cls.name}</h3>
-                      <p className="text-sm text-muted-foreground">{cls.instructor}</p>
+                      <p className="text-sm text-muted-foreground">{cls.code}</p>
                     </div>
                   </div>
-                  <Badge variant="outline">{cls.attendance}%</Badge>
+                  <Badge variant="secondary">{cls.studentCount || 0} students</Badge>
                 </div>
                 
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Attendance Rate</span>
-                    <span className="font-medium">{cls.attendance}%</span>
-                  </div>
-                  <Progress value={cls.attendance} className="h-2" />
-                </div>
+                {cls.description && (
+                  <p className="text-sm text-muted-foreground mb-3">{cls.description}</p>
+                )}
                 
-                <div className="flex justify-between items-center mt-3 text-sm">
-                  <span className="text-muted-foreground">{cls.schedule}</span>
-                  <span className="font-medium text-primary">{cls.nextClass}</span>
-                </div>
+                <Button variant="ghost" size="sm" className="w-full">
+                  View Class Details
+                </Button>
               </div>
             ))}
+            {myClasses.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">You're not enrolled in any classes yet</p>
+                <Button onClick={onJoinClass}>
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Join a Class
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Quick Reminders */}
         <Card>
           <CardHeader>
-            <CardTitle>Quick Reminders</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              Upcoming Reminders
+            </CardTitle>
+            <CardDescription>
+              Reminders from you and your teachers
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {notifications.map((notification) => (
-                <div key={notification.id} className="p-3 bg-accent/50 rounded-lg">
-                  <p className="text-sm">{notification.message}</p>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  </div>
+            {upcomingReminders.length > 0 ? (
+              <div className="space-y-3">
+                {upcomingReminders.map((reminder) => {
+                  const isOverdue = new Date(reminder.dueDate) < new Date();
+                  const isClassWide = (reminder as any).isClassWide;
+                  const className = (reminder as any).className;
+                  
+                  return (
+                    <div 
+                      key={reminder._id} 
+                      className={`p-3 rounded-lg border ${
+                        isOverdue ? 'bg-red-50 border-red-200' : 'bg-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-semibold text-sm">{reminder.title}</h4>
+                        {isOverdue && (
+                          <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                        )}
+                      </div>
+                      {isClassWide && className && (
+                        <Badge variant="outline" className="text-xs mb-2">
+                          {className}
+                        </Badge>
+                      )}
+                      {reminder.description && (
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {reminder.description.split('\n')[0]}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Due: {formatDistanceToNow(new Date(reminder.dueDate), { addSuffix: true })}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-4">
+                No upcoming reminders
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-  <NotificationsDialog 
-    open={showNotifications} 
-    onOpenChange={setShowNotifications}
-    userType="student"
-  />
-</div>
-);
+      <NotificationsDialog 
+        open={showNotifications} 
+        onOpenChange={setShowNotifications}
+        userType="student"
+      />
+    </div>
+  );
 };

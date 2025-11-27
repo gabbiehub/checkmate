@@ -8,6 +8,9 @@ import { ClassCard } from "./ClassCard";
 import { QRCodeDialog } from "./QRCodeDialog";
 import { AddReminderDialog } from "./AddReminderDialog";
 import { NotificationsDialog } from "./NotificationsDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 interface TeacherHomeProps {
   onClassSelect?: (classId: string) => void;
@@ -16,19 +19,56 @@ interface TeacherHomeProps {
 }
 
 export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: TeacherHomeProps) => {
+  const { user } = useAuth();
   const [showQRCode, setShowQRCode] = useState(false);
   const [showAddReminder, setShowAddReminder] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const upcomingEvents = [
-    { id: 1, title: "CS101 Midterm Exam", time: "2:00 PM", type: "exam" },
-    { id: 2, title: "Physics Lab Session", time: "4:00 PM", type: "class" },
-  ];
+  
+  // Fetch real data from Convex
+  const teacherClasses = useQuery(
+    api.classes.getTeacherClasses,
+    user ? { teacherId: user.userId } : "skip"
+  );
+  
+  const attendanceStats = useQuery(
+    api.classes.getTeacherAttendanceStats,
+    user ? { teacherId: user.userId } : "skip"
+  );
+  
+  const todayStr = new Date().toISOString().split('T')[0];
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  
+  const todayEvents = useQuery(
+    api.eventsAndReminders.getEventsInRange,
+    user ? { 
+      userId: user.userId,
+      startDate: todayStr,
+      endDate: todayStr,
+    } : "skip"
+  );
+  
+  const reminders = useQuery(
+    api.eventsAndReminders.getUserReminders,
+    user ? { userId: user.userId } : "skip"
+  );
 
-  const recentClasses = [
-    { id: 1, name: "Computer Science 101", code: "CS101", students: 45, attendance: 89 },
-    { id: 2, name: "Advanced Mathematics", code: "MATH201", students: 38, attendance: 92 },
-    { id: 3, name: "Physics Laboratory", code: "PHYS150", students: 28, attendance: 85 },
-  ];
+  // Process data
+  const recentClasses = teacherClasses?.slice(0, 3) || [];
+  const totalStudents = teacherClasses?.reduce((sum, c) => sum + (c.studentCount || 0), 0) || 0;
+  
+  // Get current date info
+  const now = new Date();
+  const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
+  const monthDay = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  
+  // Filter reminders for tomorrow or overdue
+  const upcomingReminders = reminders?.filter(r => 
+    !r.completed && r.dueDate <= tomorrowStr
+  ).sort((a, b) => a.dueDate.localeCompare(b.dueDate)) || [];
+  
+  // Count unread notifications (overdue reminders + today's events)
+  const notificationCount = (upcomingReminders.filter(r => r.dueDate < todayStr).length) + 
+    (todayEvents?.length || 0);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -36,8 +76,8 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
       <div className="bg-gradient-primary text-primary-foreground px-6 pt-12 pb-8 rounded-b-3xl">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Welcome back, Prof. Smith!</h1>
-            <p className="text-primary-foreground/80 mt-1">Tuesday, March 15, 2024</p>
+            <h1 className="text-2xl font-bold">Welcome back, {user?.name || 'Teacher'}!</h1>
+            <p className="text-primary-foreground/80 mt-1">{dayName}, {monthDay}</p>
           </div>
           <Button 
             variant="ghost" 
@@ -46,7 +86,11 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
             onClick={() => setShowNotifications(true)}
           >
             <Bell className="w-6 h-6" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full"></div>
+            {notificationCount > 0 && (
+              <div className="absolute -top-1 -right-1 w-5 h-5 bg-accent rounded-full flex items-center justify-center text-xs font-bold">
+                {notificationCount}
+              </div>
+            )}
           </Button>
         </div>
 
@@ -69,19 +113,19 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
         <div className="grid grid-cols-3 gap-3">
           <StatsCard 
             title="Total Classes"
-            value="12"
+            value={teacherClasses?.length.toString() || "0"}
             icon={<Users className="w-4 h-4" />}
             className="bg-white/10 border-white/20"
           />
           <StatsCard 
             title="Active Students"
-            value="420"
+            value={totalStudents.toString()}
             icon={<TrendingUp className="w-4 h-4" />}
             className="bg-white/10 border-white/20"
           />
           <StatsCard 
             title="Avg. Attendance"
-            value="89%"
+            value={attendanceStats?.averageAttendance ? `${attendanceStats.averageAttendance}%` : "N/A"}
             icon={<Calendar className="w-4 h-4" />}
             className="bg-white/10 border-white/20"
           />
@@ -96,22 +140,28 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
             <h2 className="text-lg font-semibold text-foreground">Today's Schedule</h2>
             <Clock className="w-5 h-5 text-muted-foreground" />
           </div>
-          <div className="space-y-3">
-            {upcomingEvents.map((event) => (
-              <div key={event.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-primary rounded-full"></div>
-                  <div>
-                    <p className="font-medium text-foreground">{event.title}</p>
-                    <p className="text-sm text-muted-foreground">{event.time}</p>
+          {todayEvents && todayEvents.length > 0 ? (
+            <div className="space-y-3">
+              {todayEvents.map((event) => (
+                <div key={event._id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-primary rounded-full"></div>
+                    <div>
+                      <p className="font-medium text-foreground">{event.title}</p>
+                      <p className="text-sm text-muted-foreground">{event.className}</p>
+                    </div>
                   </div>
+                  <Badge variant="secondary">
+                    event
+                  </Badge>
                 </div>
-                <Badge variant={event.type === 'exam' ? 'destructive' : 'secondary'}>
-                  {event.type}
-                </Badge>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground">No events scheduled for today</p>
+            </div>
+          )}
         </Card>
 
         {/* Recent Classes */}
@@ -130,11 +180,28 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
           <div className="space-y-3">
             {recentClasses.map((classItem) => (
               <ClassCard 
-                key={classItem.id} 
-                {...classItem} 
-                onClick={() => onClassSelect?.(classItem.id.toString())}
+                key={classItem._id} 
+                id={0}
+                name={classItem.name}
+                code={classItem.code}
+                students={classItem.studentCount}
+                attendance={90}
+                onClick={() => onClassSelect?.(classItem._id)}
               />
             ))}
+            {recentClasses.length === 0 && (
+              <Card className="p-4 text-center">
+                <p className="text-sm text-muted-foreground">No classes yet</p>
+                <Button 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={onNewClass}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Class
+                </Button>
+              </Card>
+            )}
           </div>
         </div>
 
@@ -146,13 +213,31 @@ export const TeacherHome = ({ onClassSelect, onNewClass, onViewAllClasses }: Tea
               Add Reminder
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground mb-3">
-            Don't forget: CS101 assignment deadline is tomorrow
-          </p>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="text-xs">Assignment</Badge>
-            <Badge variant="outline" className="text-xs">Due Tomorrow</Badge>
-          </div>
+          {upcomingReminders.length > 0 ? (
+            <>
+              <p className="text-sm text-muted-foreground mb-3">
+                {upcomingReminders[0].title}
+                {upcomingReminders[0].description && ` - ${upcomingReminders[0].description}`}
+              </p>
+              <div className="flex gap-2">
+                <Badge variant="outline" className="text-xs">Reminder</Badge>
+                <Badge 
+                  variant={upcomingReminders[0].dueDate < todayStr ? "destructive" : "outline"} 
+                  className="text-xs"
+                >
+                  {upcomingReminders[0].dueDate < todayStr 
+                    ? "Overdue" 
+                    : upcomingReminders[0].dueDate === todayStr 
+                    ? "Due Today" 
+                    : "Due Tomorrow"}
+                </Badge>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No upcoming reminders. Click "Add Reminder" to create one.
+            </p>
+          )}
         </Card>
         
         <QRCodeDialog 

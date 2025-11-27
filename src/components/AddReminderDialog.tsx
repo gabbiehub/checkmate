@@ -11,6 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarIcon, Bell, Clock, Users, BookOpen, X } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 interface AddReminderDialogProps {
   open: boolean;
@@ -19,6 +22,8 @@ interface AddReminderDialogProps {
 
 export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -32,6 +37,15 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
+  // Fetch teacher's classes
+  const teacherClasses = useQuery(
+    api.classes.getTeacherClasses,
+    user?.role === "teacher" ? { teacherId: user.userId } : "skip"
+  );
+  
+  // Mutation to create reminder
+  const createReminder = useMutation(api.eventsAndReminders.createReminder);
+  
   const reminderTypes = [
     { value: "assignment", label: "Assignment Due", icon: BookOpen },
     { value: "exam", label: "Exam Reminder", icon: Clock },
@@ -41,21 +55,95 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
   ];
 
   const availableTags = ["Urgent", "Follow-up", "Preparation", "Deadline", "Meeting"];
-  
-  const classes = [
-    { id: "cs101", name: "Computer Science 101" },
-    { id: "math201", name: "Advanced Mathematics" },
-    { id: "phys150", name: "Physics Laboratory" }
-  ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Reminder Created",
-      description: "Your reminder has been scheduled successfully.",
-    });
-    onOpenChange(false);
-    resetForm();
+    
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to create a reminder.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.title.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a reminder title.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.reminderDate) {
+      toast({
+        title: "Error",
+        description: "Please select a reminder date.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Format the date as ISO string
+      const dueDate = formData.reminderDate.toISOString().split('T')[0];
+      
+      // Determine if it's class-wide
+      const isClassWide = formData.recipients === "class" || formData.recipients === "beadles";
+      const classId = isClassWide && formData.classId ? formData.classId as any : undefined;
+      
+      // Build description with tags and type
+      let fullDescription = formData.description || "";
+      if (formData.type) {
+        fullDescription = `[${reminderTypes.find(t => t.value === formData.type)?.label}] ${fullDescription}`;
+      }
+      if (selectedTags.length > 0) {
+        fullDescription = `${fullDescription}\nTags: ${selectedTags.join(", ")}`;
+      }
+      if (formData.reminderTime) {
+        fullDescription = `${fullDescription}\nTime: ${formData.reminderTime}`;
+      }
+      if (formData.priority !== "medium") {
+        fullDescription = `${fullDescription}\nPriority: ${formData.priority}`;
+      }
+      if (isClassWide) {
+        fullDescription = `${fullDescription}\nSent to: ${formData.recipients === "class" ? "Entire Class" : "Class Beadles"}`;
+      }
+      
+      await createReminder({
+        userId: user.userId,
+        classId,
+        title: formData.title.trim(),
+        description: fullDescription.trim() || undefined,
+        dueDate,
+        isClassWide,
+      });
+      
+      const recipientText = isClassWide 
+        ? `for ${formData.recipients === "class" ? "entire class" : "class beadles"}`
+        : "";
+      
+      toast({
+        title: "Reminder Created",
+        description: `Your reminder has been scheduled for ${format(formData.reminderDate, "MMM dd, yyyy")} ${recipientText}`,
+      });
+      
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error creating reminder:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create reminder. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -180,11 +268,17 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
                 <SelectValue placeholder="Select a class" />
               </SelectTrigger>
               <SelectContent>
-                {classes.map((cls) => (
-                  <SelectItem key={cls.id} value={cls.id}>
-                    {cls.name}
+                {teacherClasses && teacherClasses.length > 0 ? (
+                  teacherClasses.map((cls) => (
+                    <SelectItem key={cls._id} value={cls._id}>
+                      {cls.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="none" disabled>
+                    No classes available
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -199,7 +293,7 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="ml-1 h-auto p-0 w-4 h-4"
+                    className="ml-1 p-0 w-4 h-4"
                     onClick={() => removeTag(tag)}
                   >
                     <X className="w-3 h-3" />
@@ -255,11 +349,12 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
               variant="outline" 
               onClick={() => onOpenChange(false)} 
               className="flex-1"
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
-              Create Reminder
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Reminder"}
             </Button>
           </div>
         </form>

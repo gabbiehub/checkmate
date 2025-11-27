@@ -14,6 +14,9 @@ import {
   Clock
 } from "lucide-react";
 import { ClassCard } from "./ClassCard";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 interface ClassesViewProps {
   userType?: 'teacher' | 'student';
@@ -23,24 +26,43 @@ interface ClassesViewProps {
 }
 
 export const ClassesView = ({ userType = 'teacher', onClassSelect, onNewClass, onJoinClass }: ClassesViewProps) => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
 
-  // Mock classes data
-  const allClasses = [
-    { id: 1, name: "Computer Science 101", code: "CS101", students: 45, attendance: 89, status: "active", schedule: "MWF 10:00 AM" },
-    { id: 2, name: "Advanced Mathematics", code: "MATH201", students: 38, attendance: 92, status: "active", schedule: "TTh 2:00 PM" },
-    { id: 3, name: "Physics Laboratory", code: "PHYS150", students: 28, attendance: 85, status: "active", schedule: "W 3:00 PM" },
-    { id: 4, name: "Data Structures", code: "CS201", students: 32, attendance: 78, status: "upcoming", schedule: "MWF 1:00 PM" },
-    { id: 5, name: "Linear Algebra", code: "MATH301", students: 25, attendance: 94, status: "archived", schedule: "TTh 11:00 AM" },
-  ];
+  // Fetch real classes data
+  const teacherClasses = useQuery(
+    api.classes.getTeacherClasses,
+    user?.role === 'teacher' && user ? { teacherId: user.userId } : "skip"
+  );
 
-  const filteredClasses = allClasses.filter(cls => {
+  const studentClasses = useQuery(
+    api.classes.getStudentClasses,
+    user?.role === 'student' && user ? { studentId: user.userId } : "skip"
+  );
+
+  const allClasses = userType === 'teacher' ? teacherClasses : studentClasses;
+
+  const filteredClasses = (allClasses || []).filter(cls => {
     const matchesSearch = cls.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          cls.code.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = activeFilter === "all" || cls.status === activeFilter;
-    return matchesSearch && matchesFilter;
+    // For now, all classes are "active" since we don't have status in the schema yet
+    return matchesSearch;
   });
+
+  const totalStudents = (allClasses || []).reduce((sum, c) => sum + (c.studentCount || 0), 0);
+
+  if (!user) {
+    return null;
+  }
+
+  if (!allClasses) {
+    return (
+      <div className="min-h-screen bg-background pb-20 flex items-center justify-center">
+        <p className="text-muted-foreground">Loading classes...</p>
+      </div>
+    );
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -95,29 +117,19 @@ export const ClassesView = ({ userType = 'teacher', onClassSelect, onNewClass, o
 
       {/* Content */}
       <div className="px-6 -mt-4 space-y-6">
-        {/* Filter Tabs */}
-        <Card className="p-4 shadow-card">
-          <Tabs value={activeFilter} onValueChange={setActiveFilter}>
-            <TabsList className="grid grid-cols-4 w-full">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="active">Active</TabsTrigger>
-              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-              <TabsTrigger value="archived">Archived</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </Card>
-
         {/* Stats Overview */}
         <div className="grid grid-cols-3 gap-4">
           <Card className="p-4 text-center">
             <div className="text-2xl font-bold text-primary mb-1">
-              {allClasses.filter(c => c.status === 'active').length}
+              {allClasses.length}
             </div>
-            <div className="text-sm text-muted-foreground">Active Classes</div>
+            <div className="text-sm text-muted-foreground">
+              {allClasses.length === 1 ? 'Class' : 'Classes'}
+            </div>
           </Card>
           <Card className="p-4 text-center">
             <div className="text-2xl font-bold text-primary mb-1">
-              {allClasses.reduce((sum, c) => sum + c.students, 0)}
+              {totalStudents}
             </div>
             <div className="text-sm text-muted-foreground">
               {userType === 'teacher' ? 'Total Students' : 'Classmates'}
@@ -125,9 +137,9 @@ export const ClassesView = ({ userType = 'teacher', onClassSelect, onNewClass, o
           </Card>
           <Card className="p-4 text-center">
             <div className="text-2xl font-bold text-primary mb-1">
-              {Math.round(allClasses.reduce((sum, c) => sum + c.attendance, 0) / allClasses.length)}%
+              {allClasses.length}
             </div>
-            <div className="text-sm text-muted-foreground">Avg Attendance</div>
+            <div className="text-sm text-muted-foreground">Active</div>
           </Card>
         </div>
 
@@ -146,40 +158,31 @@ export const ClassesView = ({ userType = 'teacher', onClassSelect, onNewClass, o
           {filteredClasses.length > 0 ? (
             <div className="space-y-4">
               {filteredClasses.map((classItem) => (
-                <Card key={classItem.id} className="p-4 shadow-card hover:shadow-soft transition-all cursor-pointer"
-                      onClick={() => onClassSelect?.(classItem.id.toString())}>
+                <Card key={classItem._id} className="p-4 shadow-card hover:shadow-soft transition-all cursor-pointer"
+                      onClick={() => onClassSelect?.(classItem._id)}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-foreground">{classItem.name}</h3>
-                        {getStatusBadge(classItem.status)}
+                        <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground mb-1">{classItem.code}</p>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {classItem.schedule}
-                        </div>
-                        <div className="flex items-center gap-1">
                           <Users className="w-3 h-3" />
-                          {classItem.students} students
+                          {classItem.studentCount || 0} students
                         </div>
+                        {classItem.description && (
+                          <div className="flex items-center gap-1">
+                            <BookOpen className="w-3 h-3" />
+                            {classItem.description}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Attendance: </span>
-                        <span className={`font-medium ${
-                          classItem.attendance >= 90 ? 'text-green-600' : 
-                          classItem.attendance >= 80 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {classItem.attendance}%
-                        </span>
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-end">
                     <Button variant="ghost" size="sm">
                       <BookOpen className="w-4 h-4 mr-1" />
                       View

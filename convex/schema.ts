@@ -23,13 +23,16 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_role", ["role"]),
-
   classes: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
     teacherId: v.id("users"),
     code: v.string(), // Join code
     createdAt: v.number(),
+    // Seating chart configuration
+    seatingRows: v.optional(v.number()),
+    seatingCols: v.optional(v.number()),
+    seatingFinalized: v.optional(v.boolean()),
   })
     .index("by_teacher", ["teacherId"])
     .index("by_code", ["code"]),
@@ -58,27 +61,55 @@ export default defineSchema({
   })
     .index("by_class", ["classId"])
     .index("by_student", ["studentId"])
-    .index("by_class_and_date", ["classId", "date"]),
-
-  events: defineTable({
-    classId: v.id("classes"),
+    .index("by_class_and_date", ["classId", "date"]),  events: defineTable({
+    classId: v.optional(v.id("classes")), // Optional for personal events
     title: v.string(),
     description: v.optional(v.string()),
     date: v.string(), // ISO date string
+    time: v.optional(v.string()), // Time of event
+    eventType: v.optional(v.union(
+      v.literal("exam"),
+      v.literal("activity"),
+      v.literal("class"),
+      v.literal("deadline"),
+      v.literal("other")
+    )),
+    classType: v.optional(v.union(
+      v.literal("in-person"),
+      v.literal("online"),
+      v.literal("async")
+    )),
     createdBy: v.id("users"),
+    isPersonal: v.optional(v.boolean()), // Optional for backward compatibility
     createdAt: v.number(),
   })
     .index("by_class", ["classId"])
-    .index("by_date", ["date"]),
-
+    .index("by_date", ["date"])
+    .index("by_creator", ["createdBy"]),
   reminders: defineTable({
     userId: v.id("users"),
+    classId: v.optional(v.id("classes")), // For class-wide reminders
     title: v.string(),
     description: v.optional(v.string()),
     dueDate: v.string(), // ISO date string
     completed: v.boolean(),
+    isClassWide: v.optional(v.boolean()), // Optional for backward compatibility
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_due_date", ["dueDate"]),
+    .index("by_due_date", ["dueDate"])
+    .index("by_class", ["classId"]),
+
+  // Seating assignments
+  seatAssignments: defineTable({
+    classId: v.id("classes"),
+    studentId: v.id("users"),
+    row: v.number(),
+    col: v.number(),
+    assignedAt: v.number(),
+  })
+    .index("by_class", ["classId"])
+    .index("by_student", ["studentId"])
+    .index("by_class_and_position", ["classId", "row", "col"])
+    .index("by_class_and_student", ["classId", "studentId"]),
 });

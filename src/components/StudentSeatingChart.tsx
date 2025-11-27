@@ -1,144 +1,100 @@
-import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { User, UserCheck, UserX, Clock, MapPin, Star, CheckCircle } from "lucide-react";
+import { User, UserCheck, Lock, MapPin, Star } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 
 type AttendanceStatus = "present" | "late" | "absent" | "excused" | "empty";
 
 interface Seat {
   id: string;
   studentName?: string;
-  studentId?: string;
-  nickname?: string;
-  avatar?: string;
+  studentId?: Id<"users">;
   status: AttendanceStatus;
   row: number;
   col: number;
+  isCurrentUser?: boolean;
 }
 
 interface StudentSeatingChartProps {
-  studentName: string;
-  seatPosition: { row: number; col: number };
+  classId: Id<"classes">;
+  studentId: Id<"users">;
+  onSeatSelect?: (row: number, col: number) => void;
+  canSelectSeat?: boolean;
 }
 
-export const StudentSeatingChart = ({ studentName, seatPosition }: StudentSeatingChartProps) => {
-  const [seats] = useState<Seat[]>(() => {
-    // Initialize a 6x8 seating arrangement
-    const initialSeats: Seat[] = [];
-    const students = [
-      { name: "Alice Johnson", nickname: "Ali", avatar: "👩‍💼" },
-      { name: "Bob Smith", nickname: "Bobby", avatar: "👨‍💻" },
-      { name: "Charlie Brown", nickname: "Chuck", avatar: "👦" },
-      { name: "Diana Lee", nickname: "Di", avatar: "👩‍🎓" },
-      { name: "Eva Martinez", nickname: "Evie", avatar: "👩‍🔬" },
-      { name: "Frank Wilson", nickname: "Frankie", avatar: "👨‍🎨" },
-      { name: "Grace Chen", nickname: "Gracie", avatar: "👩‍⚕️" },
-      { name: "Henry Davis", nickname: "Hank", avatar: "👨‍🏫" },
-      { name: "Ivy Taylor", nickname: "Ives", avatar: "👩‍💻" },
-      { name: "Jack Miller", nickname: "Jackie", avatar: "👨‍🔧" },
-      { name: "Kate Anderson", nickname: "Katie", avatar: "👩‍🎤" },
-      { name: "Leo Garcia", nickname: "Lee", avatar: "👨‍🚀" },
-      { name: "Maya Patel", nickname: "May", avatar: "👩‍🏭" },
-      { name: "Noah Kim", nickname: "Noe", avatar: "👨‍💼" },
-      { name: "Olivia White", nickname: "Liv", avatar: "👩‍🎭" },
-      { name: "Paul Jones", nickname: "Paulie", avatar: "👨‍🔬" },
-      { name: "Quinn Roberts", nickname: "Q", avatar: "👩‍✈️" },
-      { name: "Ruby Clark", nickname: "Rubes", avatar: "👩‍🍳" },
-      { name: "Sam Thompson", nickname: "Sammy", avatar: "👨‍🎓" },
-      { name: "Tina Liu", nickname: "T", avatar: "👩‍🌾" },
-      { name: "Uma Singh", nickname: "U", avatar: "👩‍⚖️" },
-      { name: "Victor Cruz", nickname: "Vic", avatar: "👨‍🎤" },
-      { name: "Wendy Adams", nickname: "Wen", avatar: "👩‍🔧" },
-      { name: "Xander Green", nickname: "X", avatar: "👨‍🌾" },
-      { name: "Yara Hassan", nickname: "Y", avatar: "👩‍🚀" },
-      { name: "Zoe Cooper", nickname: "Z", avatar: "👩‍🏫" },
-      { name: "Blake Foster", nickname: "B", avatar: "👨‍🎭" },
-      { name: "Cleo Park", nickname: "C", avatar: "👩‍🎨" },
-      { name: "Drew Wong", nickname: "D", avatar: "👨‍✈️" },
-      { name: "Ella Stone", nickname: "El", avatar: "👩‍🍳" },
-      { name: "Felix Burke", nickname: "Fe", avatar: "👨‍🏭" },
-      { name: "Gina Ross", nickname: "G", avatar: "👩‍🔬" },
-      { name: "Hugo Martinez", nickname: "H", avatar: "👨‍⚖️" },
-      { name: "Iris Coleman", nickname: "Iri", avatar: "👩‍🌾" }
-    ];
+export const StudentSeatingChart = ({ 
+  classId, 
+  studentId, 
+  onSeatSelect,
+  canSelectSeat = true 
+}: StudentSeatingChartProps) => {
+  // Fetch real seating data
+  const seatingData = useQuery(api.classes.getSeatingChart, { classId });
 
-    let studentIndex = 0;
-    for (let row = 0; row < 6; row++) {
-      for (let col = 0; col < 8; col++) {
-        let hasStudent = studentIndex < students.length && Math.random() > 0.1;
-        let currentStudentName = hasStudent ? students[studentIndex].name : undefined;
-        
-        // Place the current student at their assigned position
-        if (row === seatPosition.row && col === seatPosition.col) {
-          hasStudent = true;
-          currentStudentName = studentName;
-        }
-        
-        // If this is the student's seat but they're not in our mock list, add them
-        if (row === seatPosition.row && col === seatPosition.col && !students.find(s => s.name === studentName)) {
-          currentStudentName = studentName;
-        }
+  if (!seatingData) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-muted-foreground">Loading seating chart...</p>
+      </Card>
+    );
+  }
 
-        const status = hasStudent ? 
-          (Math.random() > 0.85 ? "absent" : 
-           Math.random() > 0.93 ? "late" : 
-           Math.random() > 0.98 ? "excused" : "present") : "empty";
-        
-        initialSeats.push({
-          id: `${row}-${col}`,
-          studentName: currentStudentName,
-          studentId: hasStudent ? `STU${(studentIndex + 1).toString().padStart(3, '0')}` : undefined,
-          nickname: hasStudent ? (currentStudentName === studentName ? "You" : students[Math.min(studentIndex, students.length - 1)]?.nickname) : undefined,
-          avatar: hasStudent ? (currentStudentName === studentName ? "🙋‍♂️" : students[Math.min(studentIndex, students.length - 1)]?.avatar) : undefined,
-          status: status as AttendanceStatus,
-          row,
-          col
-        });
-        
-        if (hasStudent && currentStudentName !== studentName) studentIndex++;
-      }
+  const { rows, cols, finalized, seats: assignments } = seatingData;
+
+  // Create seat grid
+  const seats: Seat[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const assignment = assignments.find(a => a.row === row && a.col === col);
+      const isCurrentUser = assignment?.studentId === studentId;
+      
+      seats.push({
+        id: `${row}-${col}`,
+        studentName: assignment?.studentName,
+        studentId: assignment?.studentId,
+        status: assignment ? "present" : "empty",
+        row,
+        col,
+        isCurrentUser,
+      });
     }
-    
-    return initialSeats;
-  });
+  }
 
-  const getSeatColor = (status: AttendanceStatus, isMyself: boolean = false) => {
-    if (isMyself) {
-      return "bg-primary/20 border-primary border-2 ring-2 ring-primary/30 shadow-lg";
+  const handleSeatClick = (seat: Seat) => {
+    if (!canSelectSeat || finalized) return;
+    
+    // Can only select empty seats or your own seat
+    if (seat.status === "empty" || seat.isCurrentUser) {
+      onSeatSelect?.(seat.row, seat.col);
+    }
+  };
+
+  const getSeatColor = (status: AttendanceStatus, isCurrentUser: boolean = false) => {
+    if (isCurrentUser) {
+      return "bg-primary/20 border-primary border-4";
     }
     
     switch (status) {
       case "present":
-        return "bg-green-50 border-green-200 hover:bg-green-100";
-      case "late":
-        return "bg-yellow-50 border-yellow-200 hover:bg-yellow-100";
-      case "absent":
-        return "bg-red-50 border-red-200 hover:bg-red-100";
-      case "excused":
-        return "bg-blue-50 border-blue-200 hover:bg-blue-100";
+        return "bg-blue-100 border-blue-300";
       case "empty":
-        return "bg-muted border-border opacity-30";
+        return "bg-muted border-border hover:bg-accent/50 hover:border-primary cursor-pointer";
       default:
-        return "bg-muted border-border";
+        return "bg-gray-100 border-gray-300";
     }
   };
 
-  const getSeatIcon = (status: AttendanceStatus, isMyself: boolean = false) => {
-    if (isMyself) {
+  const getSeatIcon = (status: AttendanceStatus, isCurrentUser: boolean = false) => {
+    if (isCurrentUser) {
       return <Star className="w-4 h-4 text-primary" fill="currentColor" />;
     }
     
     switch (status) {
       case "present":
-        return <UserCheck className="w-3 h-3 text-green-600" />;
-      case "late":
-        return <Clock className="w-3 h-3 text-yellow-600" />;
-      case "absent":
-        return <UserX className="w-3 h-3 text-red-600" />;
-      case "excused":
-        return <CheckCircle className="w-3 h-3 text-blue-600" />;
+        return <UserCheck className="w-3 h-3 text-blue-600" />;
       case "empty":
         return <div className="w-3 h-3" />;
       default:
@@ -147,29 +103,37 @@ export const StudentSeatingChart = ({ studentName, seatPosition }: StudentSeatin
   };
 
   const renderSeatContent = (seat: Seat) => {
-    if (!seat.studentName) return null;
-
-    const isMyself = seat.row === seatPosition.row && seat.col === seatPosition.col;
-    const displayName = isMyself ? "YOU" : seat.studentName.split(' ')[0];
-    
-    if (isMyself) {
+    if (seat.isCurrentUser) {
       return (
         <div className="mt-1 leading-tight text-center">
-          <div className="text-lg">{seat.avatar}</div>
-          <div className="font-bold text-primary text-xs">{displayName}</div>
+          <div className="font-bold text-primary text-xs">YOU</div>
         </div>
       );
     }
     
+    if (!seat.studentName) {
+      if (!finalized && canSelectSeat) {
+        return (
+          <div className="mt-1 leading-tight text-center">
+            <div className="text-xs text-muted-foreground">Available</div>
+          </div>
+        );
+      }
+      return null;
+    }
+    
+    const firstName = seat.studentName.split(' ')[0];
     return (
       <div className="mt-1 leading-tight text-center">
-        <div className="text-sm opacity-60">{seat.avatar}</div>
         <div className="font-medium text-xs opacity-60 truncate w-full">
-          {displayName}
+          {firstName}
         </div>
       </div>
     );
   };
+
+  // Find current user's seat position
+  const mySeat = seats.find(s => s.isCurrentUser);
 
   return (
     <div className="space-y-4">
@@ -177,27 +141,25 @@ export const StudentSeatingChart = ({ studentName, seatPosition }: StudentSeatin
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
           <h4 className="font-medium text-foreground">Seating Chart</h4>
-          <div className="flex items-center gap-2">
-            <Star className="w-4 h-4 text-primary" fill="currentColor" />
-            <span className="text-xs text-muted-foreground">Your seat</span>
-          </div>
+          {finalized && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <Lock className="w-3 h-3" />
+              Finalized
+            </Badge>
+          )}
         </div>
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
-            <span>Present</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-yellow-100 border border-yellow-200 rounded"></div>
-            <span>Late</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
-            <span>Absent</span>
+            <div className="w-3 h-3 bg-primary/20 border-2 border-primary rounded"></div>
+            <span>Your seat</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-blue-100 border border-blue-200 rounded"></div>
-            <span>Excused</span>
+            <span>Occupied</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-muted border border-border rounded"></div>
+            <span>Available</span>
           </div>
         </div>
       </Card>
@@ -210,52 +172,68 @@ export const StudentSeatingChart = ({ studentName, seatPosition }: StudentSeatin
           </div>
         </div>
         
-        <div className="grid grid-cols-8 gap-2 min-w-fit mx-auto">
+        <div 
+          className="grid gap-2 min-w-fit mx-auto" 
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
           {seats.map((seat) => {
-            const isMyself = seat.row === seatPosition.row && seat.col === seatPosition.col;
+            const isClickable = !finalized && canSelectSeat && (seat.status === "empty" || seat.isCurrentUser);
             
             return (
               <div
                 key={seat.id}
+                onClick={() => isClickable && handleSeatClick(seat)}
                 className={cn(
                   "h-16 w-16 p-1 flex flex-col items-center justify-center text-xs border-2 rounded-lg transition-all relative",
-                  getSeatColor(seat.status, isMyself),
-                  seat.studentName ? "cursor-default" : "cursor-not-allowed"
+                  getSeatColor(seat.status, seat.isCurrentUser),
+                  isClickable && "cursor-pointer"
                 )}
               >
-                {isMyself && (
-                  <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                {seat.isCurrentUser && (
+                  <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg">
                     ★
                   </div>
                 )}
-                {getSeatIcon(seat.status, isMyself)}
+                {getSeatIcon(seat.status, seat.isCurrentUser)}
                 {renderSeatContent(seat)}
               </div>
             );
           })}
         </div>
         
-        <div className="mt-4 text-center space-y-2">
-          <div className="flex items-center justify-center gap-2 text-sm text-primary font-medium">
-            <MapPin className="w-4 h-4" />
-            You are seated in Row {seatPosition.row + 1}, Column {seatPosition.col + 1}
+        {mySeat && (
+          <div className="mt-4 text-center space-y-2">
+            <div className="flex items-center justify-center gap-2 text-sm text-primary font-medium">
+              <MapPin className="w-4 h-4" />
+              You are seated in Row {mySeat.row + 1}, Column {mySeat.col + 1}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Your seat is highlighted with a star and special border
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Your seat is highlighted with a star and special border
-          </p>
-        </div>
+        )}
+        
+        {!mySeat && !finalized && canSelectSeat && (
+          <div className="mt-4 text-center p-3 bg-accent/20 rounded-lg">
+            <p className="text-sm text-muted-foreground">
+              Click on any available (gray) seat to claim it
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* Navigation Tips */}
-      <Card className="p-4 bg-accent/20">
-        <h4 className="font-medium mb-2 text-foreground">💡 Finding Your Seat</h4>
-        <div className="text-sm text-muted-foreground space-y-1">
-          <p>• Rows are numbered from front to back (1-6)</p>
-          <p>• Columns are numbered from left to right (1-8)</p>
-          <p>• Your seat is marked with a ★ and highlighted border</p>
-          <p>• Enter from the back and count your way to your position</p>
-        </div>
-      </Card>
+      {mySeat && (
+        <Card className="p-4 bg-accent/20">
+          <h4 className="font-medium mb-2 text-foreground">💡 Finding Your Seat</h4>
+          <div className="text-sm text-muted-foreground space-y-1">
+            <p>• Rows are numbered from front to back (1-{rows})</p>
+            <p>• Columns are numbered from left to right (1-{cols})</p>
+            <p>• Your seat is marked with a ★ and highlighted border</p>
+            <p>• Enter from the back and count your way to your position</p>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };
