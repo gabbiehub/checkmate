@@ -49,20 +49,6 @@ export const PrivacySecurityDialog = ({ open, onOpenChange }: PrivacySecurityDia
           <Separator />
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold">Data & Analytics</h3>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="analytics">Share Usage Analytics</Label>
-              <Switch id="analytics" defaultChecked />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="performance">Performance Tracking</Label>
-              <Switch id="performance" defaultChecked />
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-4">
             <h3 className="text-sm font-semibold">Data Management</h3>
             <Button variant="outline" className="w-full justify-start">
               Download My Data

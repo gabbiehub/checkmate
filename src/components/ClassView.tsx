@@ -4,26 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  ArrowLeft, 
-  Users, 
+  ArrowLeft,
   QrCode, 
   Settings, 
   Calendar, 
   Bell,
-  BarChart3,
   UserCheck,
-  UserX,
   Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
   Loader2,
   Edit,
-  Trash2
+  Trash2,
+  Copy
 } from "lucide-react";
 import { SeatingChart } from "./SeatingChart";
 import { StudentList } from "./StudentList";
-import { ClassAnalytics } from "./ClassAnalytics";
 import { ClassSettingsDialog } from "./ClassSettingsDialog";
 import { QRCodeDialog } from "./QRCodeDialog";
 import { AddReminderDialog } from "./AddReminderDialog";
@@ -188,13 +185,41 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold truncate">
               {classData.description || classData.name}
             </h1>
-            <p className="text-primary-foreground/80 text-sm">
-              {classData.name}{classData.schedule && ` • ${classData.schedule}`}
-            </p>
+            <div className="flex items-center gap-2 text-sm text-primary-foreground/80">
+              <span className="truncate">{classData.name}</span>
+              {classData.schedule && (
+                <>
+                  <span>•</span>
+                  <span className="truncate">{classData.schedule}</span>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge 
+                variant="secondary" 
+                className="bg-white/20 text-primary-foreground border-0 font-mono text-sm px-2 py-0.5"
+              >
+                {classData.code}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10"
+                onClick={() => {
+                  navigator.clipboard.writeText(classData.code);
+                  toast({
+                    title: "Code Copied",
+                    description: "Class code copied to clipboard",
+                  });
+                }}
+              >
+                <Copy className="w-3 h-3" />
+              </Button>
+            </div>
           </div>
           <Button 
             variant="ghost" 
@@ -239,7 +264,8 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
       <div className="px-6 -mt-3 mb-6">
         <div className="grid grid-cols-2 gap-3">
           <Button 
-            className="bg-card shadow-card hover:shadow-soft"
+            variant="outline"
+            className="bg-card shadow-card hover:shadow-soft text-foreground"            
             onClick={() => setShowQRCode(true)}
           >
             <QrCode className="w-4 h-4 mr-2" />

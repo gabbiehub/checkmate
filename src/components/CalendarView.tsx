@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { format, isSameDay, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 interface Event {
   _id: string;
@@ -190,12 +190,12 @@ export const CalendarView = () => {
       {/* Content */}
       <div className="px-6 -mt-4 space-y-6">
         {/* Calendar Widget */}
-        <Card className="p-4 shadow-card">
+        <Card className="p-4 shadow-card flex flex-col items-center">
           <Calendar
             mode="single"
             selected={selectedDate}
             onSelect={setSelectedDate}
-            className="rounded-md"
+            className="rounded-md mx-auto"
             modifiers={modifiers}
             modifiersClassNames={modifiersClassNames}
           />

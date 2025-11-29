@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Calendar, Users, TrendingUp, Clock, MapPin, CheckCircle, XCircle, AlertCircle, Armchair, User, Bell } from "lucide-react";
+import { ArrowLeft, Calendar, Users, TrendingUp, Clock, MapPin, CheckCircle, XCircle, AlertCircle, Armchair, User, Bell, UserCheck, Loader2 } from "lucide-react";
 import { StudentSeatingChart } from "./StudentSeatingChart";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation } from "convex/react";
@@ -23,6 +23,9 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
+
+  const todayDate = format(new Date(), 'yyyy-MM-dd');
 
   // Fetch real data from Convex
   const classData = useQuery(api.classes.getClass, { classId: classId as Id<"classes"> });
@@ -33,6 +36,18 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
     studentId: user?.userId ?? ("" as Id<"users">)
   });
   const classStats = useQuery(api.classes.getClassAttendanceStats, { classId: classId as Id<"classes"> });
+  
+  // Check if user is a beadle
+  const isBeadle = useQuery(api.classes.isUserBeadle, {
+    classId: classId as Id<"classes">,
+    userId: user?.userId ?? ("" as Id<"users">),
+  });
+  
+  // Fetch today's attendance (for beadles)
+  const todayAttendance = useQuery(
+    api.classes.getTodayAttendance,
+    isBeadle ? { classId: classId as Id<"classes">, date: todayDate } : "skip"
+  );
   
   // Fetch reminders for this class
   const allReminders = useQuery(
@@ -48,6 +63,8 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
   }).filter(r => !r.completed).sort((a, b) => a.dueDate.localeCompare(b.dueDate)) || [];
   
   const assignSeat = useMutation(api.classes.assignSeat);
+  const markAttendance = useMutation(api.classes.markAttendance);
+  const markAllAttendance = useMutation(api.classes.markAllAttendance);
 
   if (!user || !classData || !seatingData || !classStudents || !myAttendance || !classStats) {
     return (
@@ -84,6 +101,71 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
         variant: "destructive",
       });
     }
+  };
+
+  // Beadle attendance marking handlers
+  const handleMarkAll = async (status: "present" | "absent" | "late" | "excused") => {
+    if (!user || !isBeadle) return;
+    
+    setIsMarkingAll(true);
+    try {
+      const result = await markAllAttendance({
+        classId: classId as Id<"classes">,
+        date: todayDate,
+        status,
+        teacherId: user.userId,
+      });
+      
+      toast({
+        title: "Attendance Marked",
+        description: `Marked ${result.count} students as ${status}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to mark attendance",
+        variant: "destructive",
+      });
+    } finally {
+      setIsMarkingAll(false);
+    }
+  };
+
+  const handleMarkStudent = async (
+    studentId: string, 
+    status: "present" | "absent" | "late" | "excused"
+  ) => {
+    if (!user || !isBeadle) return;
+    
+    try {
+      await markAttendance({
+        classId: classId as Id<"classes">,
+        studentId: studentId as Id<"users">,
+        date: todayDate,
+        status,
+        teacherId: user.userId,
+      });
+      
+      toast({
+        title: "Attendance Updated",
+        description: `Student marked as ${status}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to mark attendance",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const todayStats = todayAttendance?.stats || {
+    total: classData.studentCount || 0,
+    present: 0,
+    late: 0,
+    absent: 0,
+    excused: 0,
+    unmarked: classData.studentCount || 0,
   };
 
   const getStatusIcon = (status: string) => {
@@ -179,13 +261,238 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
           </CardContent>
         </Card>
 
+        {/* Beadle Badge */}
+        {isBeadle && (
+          <Card className="mb-6 border-amber-200 bg-amber-50">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-amber-800">Class Beadle</p>
+                  <p className="text-sm text-amber-700">You can mark attendance for this class</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={cn("grid w-full", isBeadle ? "grid-cols-4" : "grid-cols-3")}>
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            {isBeadle && <TabsTrigger value="attendance">Attendance</TabsTrigger>}
             <TabsTrigger value="seating">My Seat</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
+
+          {/* Beadle Attendance Tab */}
+          {isBeadle && (
+            <TabsContent value="attendance" className="space-y-4">
+              {/* Today's Attendance Summary */}
+              <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-amber-800">
+                    <Clock className="w-5 h-5" />
+                    Today's Attendance - {format(new Date(), 'MMM dd, yyyy')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-gray-700">{todayStats.total}</div>
+                      <div className="text-xs text-muted-foreground">Total</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{todayStats.present}</div>
+                      <div className="text-xs text-muted-foreground">Present</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-yellow-600">{todayStats.late}</div>
+                      <div className="text-xs text-muted-foreground">Late</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-600">{todayStats.absent}</div>
+                      <div className="text-xs text-muted-foreground">Absent</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Quick Mark All Buttons */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleMarkAll("present")}
+                      disabled={isMarkingAll}
+                      className="border-green-200 hover:bg-green-50"
+                    >
+                      {isMarkingAll ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4 mr-1 text-green-600" />
+                      )}
+                      All Present
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleMarkAll("absent")}
+                      disabled={isMarkingAll}
+                      className="border-red-200 hover:bg-red-50"
+                    >
+                      {isMarkingAll ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <XCircle className="w-4 h-4 mr-1 text-red-600" />
+                      )}
+                      All Absent
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleMarkAll("late")}
+                      disabled={isMarkingAll}
+                      className="border-yellow-200 hover:bg-yellow-50"
+                    >
+                      {isMarkingAll ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 mr-1 text-yellow-600" />
+                      )}
+                      All Late
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleMarkAll("excused")}
+                      disabled={isMarkingAll}
+                      className="border-blue-200 hover:bg-blue-50"
+                    >
+                      {isMarkingAll ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <UserCheck className="w-4 h-4 mr-1 text-blue-600" />
+                      )}
+                      All Excused
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Student List for Attendance */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Mark Individual Students</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 max-h-80 overflow-y-auto">
+                  {todayAttendance?.records.map((record) => (
+                    <div
+                      key={record._id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{record.studentName}</p>
+                        {record.studentIdNumber && (
+                          <p className="text-xs text-muted-foreground">{record.studentIdNumber}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={record.status === "present" ? "default" : "outline"}
+                          onClick={() => handleMarkStudent(record.studentId, "present")}
+                          className={cn("h-8 w-8 p-0", record.status === "present" && "bg-green-600 hover:bg-green-700")}
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={record.status === "late" ? "default" : "outline"}
+                          onClick={() => handleMarkStudent(record.studentId, "late")}
+                          className={cn("h-8 w-8 p-0", record.status === "late" && "bg-yellow-600 hover:bg-yellow-700")}
+                        >
+                          <Clock className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={record.status === "absent" ? "default" : "outline"}
+                          onClick={() => handleMarkStudent(record.studentId, "absent")}
+                          className={cn("h-8 w-8 p-0", record.status === "absent" && "bg-red-600 hover:bg-red-700")}
+                        >
+                          <XCircle className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={record.status === "excused" ? "default" : "outline"}
+                          onClick={() => handleMarkStudent(record.studentId, "excused")}
+                          className={cn("h-8 w-8 p-0", record.status === "excused" && "bg-blue-600 hover:bg-blue-700")}
+                        >
+                          <UserCheck className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {todayAttendance?.unmarked.map((student) => (
+                    <div
+                      key={student.studentId}
+                      className="flex items-center justify-between p-3 border rounded-lg bg-muted/30"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{student.studentName}</p>
+                        {student.studentIdNumber && (
+                          <p className="text-xs text-muted-foreground">{student.studentIdNumber}</p>
+                        )}
+                        <Badge variant="outline" className="mt-1 text-xs">Not marked</Badge>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMarkStudent(student.studentId, "present")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMarkStudent(student.studentId, "late")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Clock className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMarkStudent(student.studentId, "absent")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <XCircle className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMarkStudent(student.studentId, "excused")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <UserCheck className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
           
           <TabsContent value="overview" className="space-y-4">
             {/* Class Reminders from Teacher */}

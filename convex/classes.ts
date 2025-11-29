@@ -486,8 +486,20 @@ export const markAttendance = mutation({
       throw new Error("Class not found");
     }
 
-    if (cls.teacherId !== args.teacherId) {
-      throw new Error("Only the class teacher can mark attendance");
+    // Check if user is teacher or beadle
+    const isTeacher = cls.teacherId === args.teacherId;
+    
+    // Check if user is a beadle for this class
+    const beadleMembership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.teacherId)
+      )
+      .first();
+    const isBeadle = beadleMembership?.isBeadle === true;
+
+    if (!isTeacher && !isBeadle) {
+      throw new Error("Only the class teacher or beadles can mark attendance");
     }
 
     // Check if attendance already exists for this student on this date
@@ -540,8 +552,20 @@ export const markAllAttendance = mutation({
       throw new Error("Class not found");
     }
 
-    if (cls.teacherId !== args.teacherId) {
-      throw new Error("Only the class teacher can mark attendance");
+    // Check if user is teacher or beadle
+    const isTeacher = cls.teacherId === args.teacherId;
+    
+    // Check if user is a beadle for this class
+    const beadleMembership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.teacherId)
+      )
+      .first();
+    const isBeadle = beadleMembership?.isBeadle === true;
+
+    if (!isTeacher && !isBeadle) {
+      throw new Error("Only the class teacher or beadles can mark attendance");
     }
 
     // Get all students in the class
@@ -638,5 +662,454 @@ export const getTodayAttendance = query({
         unmarked: studentsWithoutAttendance.length,
       },
     };
+  },
+});
+
+// Get comprehensive analytics for a teacher
+export const getTeacherAnalytics = query({
+  args: { teacherId: v.id("users") },
+  handler: async (ctx, args) => {
+    // Get all classes for this teacher
+    const classes = await ctx.db
+      .query("classes")
+      .withIndex("by_teacher", (q) => q.eq("teacherId", args.teacherId))
+      .collect();
+
+    if (classes.length === 0) {
+      return {
+        totalClasses: 0,
+        totalStudents: 0,
+        averageAttendance: 0,
+        atRiskStudents: [],
+        classPerformance: [],
+        recentTrends: [],
+      };
+    }
+
+    // Get all class members and attendance records
+    let totalStudents = 0;
+    let allAttendanceRecords: any[] = [];
+    const classPerformance: any[] = [];
+    const studentAttendanceMap: Map<string, { 
+      studentId: string; 
+      name: string; 
+      className: string;
+      classCode: string;
+      absences: number; 
+      totalSessions: number;
+    }> = new Map();
+
+    for (const cls of classes) {
+      // Get students in this class
+      const members = await ctx.db
+        .query("classMembers")
+        .withIndex("by_class", (q) => q.eq("classId", cls._id))
+        .collect();
+      
+      totalStudents += members.length;
+
+      // Get attendance records for this class
+      const records = await ctx.db
+        .query("attendance")
+        .withIndex("by_class", (q) => q.eq("classId", cls._id))
+        .collect();
+      
+      allAttendanceRecords = allAttendanceRecords.concat(records);
+
+      // Calculate class attendance rate
+      const uniqueDates = [...new Set(records.map(r => r.date))];
+      const presentOrLate = records.filter(r => r.status === "present" || r.status === "late").length;
+      const classAttendance = records.length > 0 
+        ? Math.round((presentOrLate / records.length) * 100)
+        : 0;
+
+      // Track student absences for at-risk calculation
+      for (const member of members) {
+        const student = await ctx.db.get(member.studentId);
+        if (!student) continue;
+
+        const studentRecords = records.filter(r => r.studentId === member.studentId);
+        const absences = studentRecords.filter(r => r.status === "absent").length;
+        const key = `${member.studentId}-${cls._id}`;
+        
+        studentAttendanceMap.set(key, {
+          studentId: member.studentId,
+          name: student.name,
+          className: cls.name,
+          classCode: cls.code,
+          absences,
+          totalSessions: uniqueDates.length,
+        });
+      }
+
+      classPerformance.push({
+        id: cls._id,
+        name: cls.name,
+        code: cls.code,
+        description: cls.description,
+        students: members.length,
+        attendance: classAttendance,
+        totalSessions: uniqueDates.length,
+      });
+    }
+
+    // Calculate overall attendance
+    const totalPresentOrLate = allAttendanceRecords.filter(
+      r => r.status === "present" || r.status === "late"
+    ).length;
+    const averageAttendance = allAttendanceRecords.length > 0
+      ? Math.round((totalPresentOrLate / allAttendanceRecords.length) * 100)
+      : 0;
+
+    // Identify at-risk students (3+ absences or attendance rate below 75%)
+    const atRiskStudents: any[] = [];
+    studentAttendanceMap.forEach((data) => {
+      const attendanceRate = data.totalSessions > 0 
+        ? ((data.totalSessions - data.absences) / data.totalSessions) * 100
+        : 100;
+      
+      // Consider at-risk if 3+ absences or below 75% attendance
+      if (data.absences >= 3 || (data.totalSessions >= 5 && attendanceRate < 75)) {
+        const allowableAbsences = Math.max(0, Math.floor(data.totalSessions * 0.25));
+        atRiskStudents.push({
+          ...data,
+          allowableRemaining: Math.max(0, allowableAbsences - data.absences),
+          attendanceRate: Math.round(attendanceRate),
+        });
+      }
+    });
+
+    // Sort at-risk students by absences (descending)
+    atRiskStudents.sort((a, b) => b.absences - a.absences);
+
+    // Sort class performance by attendance (descending)
+    classPerformance.sort((a, b) => b.attendance - a.attendance);
+
+    // Calculate attendance trends (last 7 days)
+    const today = new Date();
+    const recentTrends: { date: string; attendance: number }[] = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayRecords = allAttendanceRecords.filter(r => r.date === dateStr);
+      const dayPresentOrLate = dayRecords.filter(
+        r => r.status === "present" || r.status === "late"
+      ).length;
+      const dayAttendance = dayRecords.length > 0
+        ? Math.round((dayPresentOrLate / dayRecords.length) * 100)
+        : 0;
+      
+      recentTrends.push({
+        date: dateStr,
+        attendance: dayAttendance,
+      });
+    }
+
+    return {
+      totalClasses: classes.length,
+      totalStudents,
+      averageAttendance,
+      atRiskStudents: atRiskStudents.slice(0, 10), // Top 10 at-risk
+      classPerformance,
+      recentTrends,
+    };
+  },
+});
+
+// Get student analytics (for student users)
+export const getStudentAnalytics = query({
+  args: { studentId: v.id("users") },
+  handler: async (ctx, args) => {
+    // Get all classes the student is enrolled in
+    const memberships = await ctx.db
+      .query("classMembers")
+      .withIndex("by_student", (q) => q.eq("studentId", args.studentId))
+      .collect();
+
+    if (memberships.length === 0) {
+      return {
+        totalClasses: 0,
+        overallAttendance: 0,
+        classPerformance: [],
+        recentAttendance: [],
+        stats: { present: 0, late: 0, absent: 0, excused: 0 },
+      };
+    }
+
+    let allRecords: any[] = [];
+    const classPerformance: any[] = [];
+
+    for (const membership of memberships) {
+      const cls = await ctx.db.get(membership.classId);
+      if (!cls) continue;
+
+      // Get all attendance records for this class
+      const classRecords = await ctx.db
+        .query("attendance")
+        .withIndex("by_class", (q) => q.eq("classId", membership.classId))
+        .collect();
+
+      // Filter for this student
+      const studentRecords = classRecords.filter(r => r.studentId === args.studentId);
+      allRecords = allRecords.concat(studentRecords);
+
+      // Calculate class-specific stats
+      const present = studentRecords.filter(r => r.status === "present").length;
+      const late = studentRecords.filter(r => r.status === "late").length;
+      const absent = studentRecords.filter(r => r.status === "absent").length;
+      const total = studentRecords.length;
+      
+      const attendance = total > 0 
+        ? Math.round(((present + late) / total) * 100)
+        : 0;
+
+      classPerformance.push({
+        id: cls._id,
+        name: cls.name,
+        code: cls.code,
+        description: cls.description,
+        attendance,
+        present,
+        late,
+        absent,
+        totalSessions: total,
+      });
+    }
+
+    // Calculate overall stats
+    const stats = {
+      present: allRecords.filter(r => r.status === "present").length,
+      late: allRecords.filter(r => r.status === "late").length,
+      absent: allRecords.filter(r => r.status === "absent").length,
+      excused: allRecords.filter(r => r.status === "excused").length,
+    };
+
+    const overallAttendance = allRecords.length > 0
+      ? Math.round(((stats.present + stats.late) / allRecords.length) * 100)
+      : 0;
+
+    // Get recent attendance (last 10 records)
+    const recentAttendance = allRecords
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 10)
+      .map(r => ({
+        date: r.date,
+        status: r.status,
+        classId: r.classId,
+      }));
+
+    // Sort class performance by attendance
+    classPerformance.sort((a, b) => b.attendance - a.attendance);
+
+    return {
+      totalClasses: memberships.length,
+      overallAttendance,
+      classPerformance,
+      recentAttendance,
+      stats,
+    };
+  },
+});
+
+// Get class settings
+export const getClassSettings = query({
+  args: { classId: v.id("classes") },
+  handler: async (ctx, args) => {
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) return null;
+
+    return {
+      name: cls.name,
+      description: cls.description || "",
+      autoMarkAbsent: cls.autoMarkAbsent ?? true,
+      allowLateSubmissions: cls.allowLateSubmissions ?? false,
+      sendReminders: cls.sendReminders ?? true,
+      requireConfirmation: cls.requireConfirmation ?? false,
+    };
+  },
+});
+
+// Update class settings
+export const updateClassSettings = mutation({
+  args: {
+    classId: v.id("classes"),
+    teacherId: v.id("users"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    autoMarkAbsent: v.boolean(),
+    allowLateSubmissions: v.boolean(),
+    sendReminders: v.boolean(),
+    requireConfirmation: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    if (cls.teacherId !== args.teacherId) {
+      throw new Error("Only the class teacher can update settings");
+    }
+
+    await ctx.db.patch(args.classId, {
+      name: args.name,
+      description: args.description,
+      autoMarkAbsent: args.autoMarkAbsent,
+      allowLateSubmissions: args.allowLateSubmissions,
+      sendReminders: args.sendReminders,
+      requireConfirmation: args.requireConfirmation,
+    });
+
+    return { success: true };
+  },
+});
+
+// Get class beadles
+export const getClassBeadles = query({
+  args: { classId: v.id("classes") },
+  handler: async (ctx, args) => {
+    const beadles = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class", (q) => q.eq("classId", args.classId))
+      .filter((q) => q.eq(q.field("isBeadle"), true))
+      .collect();
+
+    const enrichedBeadles = await Promise.all(
+      beadles.map(async (beadle) => {
+        const student = await ctx.db.get(beadle.studentId);
+        if (!student) return null;
+        return {
+          id: beadle.studentId as string,
+          name: student.name,
+          email: student.email,
+          membershipId: beadle._id as string,
+        };
+      })
+    );
+
+    return enrichedBeadles.filter((b): b is NonNullable<typeof b> => b !== null);
+  },
+});
+
+// Add a beadle to a class
+export const addBeadle = mutation({
+  args: {
+    classId: v.id("classes"),
+    studentId: v.id("users"),
+    teacherId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    if (cls.teacherId !== args.teacherId) {
+      throw new Error("Only the class teacher can add beadles");
+    }
+
+    // Find the membership record
+    const membership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.studentId)
+      )
+      .first();
+
+    if (!membership) {
+      throw new Error("Student is not a member of this class");
+    }
+
+    // Update the membership to mark as beadle
+    await ctx.db.patch(membership._id, {
+      isBeadle: true,
+    });
+
+    return { success: true };
+  },
+});
+
+// Remove a beadle from a class
+export const removeBeadle = mutation({
+  args: {
+    classId: v.id("classes"),
+    studentId: v.id("users"),
+    teacherId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    if (cls.teacherId !== args.teacherId) {
+      throw new Error("Only the class teacher can remove beadles");
+    }
+
+    // Find the membership record
+    const membership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.studentId)
+      )
+      .first();
+
+    if (!membership) {
+      throw new Error("Student is not a member of this class");
+    }
+
+    // Update the membership to remove beadle status
+    await ctx.db.patch(membership._id, {
+      isBeadle: false,
+    });
+
+    return { success: true };
+  },
+});
+
+// Get available students (non-beadles) for beadle selection
+export const getAvailableStudentsForBeadle = query({
+  args: { classId: v.id("classes") },
+  handler: async (ctx, args) => {
+    const members = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class", (q) => q.eq("classId", args.classId))
+      .filter((q) => q.neq(q.field("isBeadle"), true))
+      .collect();
+
+    const students = await Promise.all(
+      members.map(async (m) => {
+        const student = await ctx.db.get(m.studentId);
+        if (!student) return null;
+        return {
+          id: student._id as string,
+          name: student.name,
+          email: student.email,
+        };
+      })
+    );
+
+    return students.filter((s): s is NonNullable<typeof s> => s !== null);
+  },
+});
+
+// Check if a user is a beadle for a class
+export const isUserBeadle = query({
+  args: { 
+    classId: v.id("classes"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const membership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.userId)
+      )
+      .first();
+
+    return membership?.isBeadle === true;
   },
 });
