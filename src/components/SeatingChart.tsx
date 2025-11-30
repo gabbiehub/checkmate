@@ -211,8 +211,22 @@ export const SeatingChart = ({ classId }: SeatingChartProps) => {
     return acc;
   }, { present: 0, late: 0, absent: 0, excused: 0, unmarked: 0, empty: 0 } as Record<AttendanceStatus | 'empty', number>);
 
+  // Generate seat code like A1, B2, etc.
+  const getSeatCode = (row: number, col: number) => {
+    const rowLetter = String.fromCharCode(65 + row); // A, B, C, ...
+    return `${rowLetter}${col + 1}`;
+  };
+
   const renderSeatContent = (seat: Seat) => {
-    if (!seat.studentName) return null;
+    const seatCode = getSeatCode(seat.row, seat.col);
+    
+    if (!seat.studentName) {
+      return (
+        <div className="mt-0.5 leading-tight text-center">
+          <div className="text-[10px] text-muted-foreground">{seatCode}</div>
+        </div>
+      );
+    }
 
     const [firstName, ...lastNameParts] = seat.studentName.split(' ');
     const lastName = lastNameParts.join(' ');
@@ -220,28 +234,31 @@ export const SeatingChart = ({ classId }: SeatingChartProps) => {
     switch (displayMode) {
       case "first-name":
         return (
-          <div className="mt-1 leading-tight text-center">
-            <div className="font-medium truncate w-full text-xs">{firstName}</div>
+          <div className="mt-0.5 leading-tight text-center">
+            <div className="font-medium truncate w-full text-[10px]">{firstName}</div>
+            <div className="text-[8px] text-muted-foreground">{seatCode}</div>
           </div>
         );
       case "last-name":
         return (
-          <div className="mt-1 leading-tight text-center">
-            <div className="font-medium truncate w-full text-xs">{lastName}</div>
+          <div className="mt-0.5 leading-tight text-center">
+            <div className="font-medium truncate w-full text-[10px]">{lastName || firstName}</div>
+            <div className="text-[8px] text-muted-foreground">{seatCode}</div>
           </div>
         );
       case "student-id":
         return (
-          <div className="mt-1 leading-tight text-center">
-            <div className="font-medium truncate w-full text-xs">{seat.studentIdNumber}</div>
+          <div className="mt-0.5 leading-tight text-center">
+            <div className="font-medium truncate w-full text-[10px]">{seat.studentIdNumber || '-'}</div>
+            <div className="text-[8px] text-muted-foreground">{seatCode}</div>
           </div>
         );
       case "full-name":
       default:
         return (
-          <div className="mt-1 leading-tight text-center">
-            <div className="font-medium truncate w-full text-xs">{firstName}</div>
-            <div className="text-xs text-muted-foreground truncate w-full">{lastName}</div>
+          <div className="mt-0.5 leading-tight text-center">
+            <div className="font-medium truncate w-full text-[10px]">{firstName}</div>
+            <div className="text-[8px] text-muted-foreground">{seatCode}</div>
           </div>
         );
     }
@@ -387,70 +404,75 @@ export const SeatingChart = ({ classId }: SeatingChartProps) => {
       </Card>
 
       {/* Seating Chart */}
-      <Card className="p-4 overflow-x-auto">
+      <Card className="p-4">
         <div className="mb-4 text-center">
-          <div className="inline-block px-8 py-2 bg-muted rounded-lg text-sm font-medium text-muted-foreground">
+          <div className="inline-block px-6 py-1.5 bg-muted rounded-lg text-xs font-medium text-muted-foreground">
             📚 Teacher's Desk / Whiteboard
           </div>
         </div>
         
-        <div className={`grid gap-2 min-w-fit mx-auto`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {seats.map((seat) => {
-            const hasStudent = !!seat.studentName;
-            
-            return attendanceMode && hasStudent && seat.userId ? (
-              // Interactive seat in attendance mode
-              <DropdownMenu key={seat.id}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className={cn(
-                      "h-16 w-16 p-1 flex flex-col items-center justify-center text-xs border-2 transition-all rounded-md cursor-pointer hover:scale-105 hover:shadow-md active:scale-95",
-                      getSeatColor(seat.status, hasStudent),
-                    )}
-                    onClick={() => console.log("Seat clicked:", seat.studentName, seat.userId)}
-                  >
-                    {getSeatIcon(seat.status, hasStudent)}
-                    {renderSeatContent(seat)}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleMarkAttendance(seat.userId!, "present", seat.studentName)}>
-                    <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                    Mark Present
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleMarkAttendance(seat.userId!, "late", seat.studentName)}>
-                    <Clock className="w-4 h-4 mr-2 text-yellow-600" />
-                    Mark Late
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleMarkAttendance(seat.userId!, "absent", seat.studentName)}>
-                    <XCircle className="w-4 h-4 mr-2 text-red-600" />
-                    Mark Absent
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleMarkAttendance(seat.userId!, "excused", seat.studentName)}>
-                    <UserCheck className="w-4 h-4 mr-2 text-blue-600" />
-                    Mark Excused
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              // Non-interactive seat in seating mode or empty seat
-              <div
-                key={seat.id}
-                className={cn(
-                  "h-16 w-16 p-1 flex flex-col items-center justify-center text-xs border-2 transition-all rounded-md",
-                  getSeatColor(seat.status, hasStudent),
-                )}
-              >
-                {getSeatIcon(seat.status, hasStudent)}
-                {renderSeatContent(seat)}
-              </div>
-            );
-          })}
+        <div className="overflow-auto max-h-[400px] pb-2">
+          <div 
+            className="grid gap-1.5 w-max mx-auto" 
+            style={{ gridTemplateColumns: `repeat(${cols}, 44px)` }}
+          >
+            {seats.map((seat) => {
+              const hasStudent = !!seat.studentName;
+              
+              return attendanceMode && hasStudent && seat.userId ? (
+                // Interactive seat in attendance mode
+                <DropdownMenu key={seat.id}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(
+                        "h-11 w-11 p-0.5 flex flex-col items-center justify-center text-xs border-2 transition-all rounded-md cursor-pointer hover:scale-105 hover:shadow-md active:scale-95",
+                        getSeatColor(seat.status, hasStudent),
+                      )}
+                      onClick={() => console.log("Seat clicked:", seat.studentName, seat.userId)}
+                    >
+                      {getSeatIcon(seat.status, hasStudent)}
+                      {renderSeatContent(seat)}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleMarkAttendance(seat.userId!, "present", seat.studentName)}>
+                      <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                      Mark Present
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleMarkAttendance(seat.userId!, "late", seat.studentName)}>
+                      <Clock className="w-4 h-4 mr-2 text-yellow-600" />
+                      Mark Late
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleMarkAttendance(seat.userId!, "absent", seat.studentName)}>
+                      <XCircle className="w-4 h-4 mr-2 text-red-600" />
+                      Mark Absent
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleMarkAttendance(seat.userId!, "excused", seat.studentName)}>
+                      <UserCheck className="w-4 h-4 mr-2 text-blue-600" />
+                      Mark Excused
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                // Non-interactive seat in seating mode or empty seat
+                <div
+                  key={seat.id}
+                  className={cn(
+                    "h-11 w-11 p-0.5 flex flex-col items-center justify-center text-xs border-2 transition-all rounded-md",
+                    getSeatColor(seat.status, hasStudent),
+                  )}
+                >
+                  {getSeatIcon(seat.status, hasStudent)}
+                  {renderSeatContent(seat)}
+                </div>
+              );
+            })}
+          </div>
         </div>
         
-        <div className="mt-4 text-center text-xs text-muted-foreground">
+        <div className="mt-3 text-center text-xs text-muted-foreground">
           {attendanceMode 
-            ? "Click on a student's seat to mark their attendance" 
+            ? "Tap on a student's seat to mark attendance" 
             : finalized 
             ? "Seating arrangement is finalized" 
             : "Students can select their seats"}

@@ -50,20 +50,6 @@ export const AccountSettingsDialog = ({ open, onOpenChange }: AccountSettingsDia
           <Separator />
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold">Account Preferences</h3>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="two-factor">Two-Factor Authentication</Label>
-              <Switch id="two-factor" />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="session-timeout">Auto Session Timeout</Label>
-              <Switch id="session-timeout" defaultChecked />
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-4">
             <h3 className="text-sm font-semibold">Danger Zone</h3>
             <Button variant="destructive" className="w-full">
               Deactivate Account

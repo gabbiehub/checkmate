@@ -33,6 +33,11 @@ export default defineSchema({
     seatingRows: v.optional(v.number()),
     seatingCols: v.optional(v.number()),
     seatingFinalized: v.optional(v.boolean()),
+    // Attendance settings
+    autoMarkAbsent: v.optional(v.boolean()),
+    allowLateSubmissions: v.optional(v.boolean()),
+    sendReminders: v.optional(v.boolean()),
+    requireConfirmation: v.optional(v.boolean()),
   })
     .index("by_teacher", ["teacherId"])
     .index("by_code", ["code"]),
@@ -41,6 +46,7 @@ export default defineSchema({
     classId: v.id("classes"),
     studentId: v.id("users"),
     joinedAt: v.number(),
+    isBeadle: v.optional(v.boolean()), // Whether this student is a class beadle
   })
     .index("by_class", ["classId"])
     .index("by_student", ["studentId"])
