@@ -98,18 +98,6 @@ checkmate/
 2. Join a class using the class code or by scanning the QR code
 3. View your attendance, classes, and upcoming events
 
-## QR Code Features
-
-### Generating QR Codes (Teachers)
-- Navigate to your class view
-- Click the QR code icon
-- Download or share the QR code with students
-
-### Scanning QR Codes (Students)
-- Click "Join Class" 
-- Choose "QR Scan" tab
-- **Open Camera**: Use your device camera (requires HTTPS)
-- **Upload Image**: Upload a screenshot/photo of the QR code
 
 ## Deployment
 
