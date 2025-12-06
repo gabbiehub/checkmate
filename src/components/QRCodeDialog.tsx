@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Copy, Download, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 
 interface QRCodeDialogProps {
   open: boolean;
@@ -15,6 +17,31 @@ interface QRCodeDialogProps {
 
 export const QRCodeDialog = ({ open, onOpenChange, classData }: QRCodeDialogProps) => {
   const { toast } = useToast();
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+
+  useEffect(() => {
+    const generateQR = async () => {
+      if (classData?.code && open) {
+        try {
+          console.log('Generating QR code for:', classData.code);
+          const url = await QRCode.toDataURL(classData.code, {
+            width: 192,
+            margin: 2,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            }
+          });
+          setQrCodeUrl(url);
+          console.log('QR code generated successfully');
+        } catch (err) {
+          console.error('Error generating QR code:', err);
+        }
+      }
+    };
+    
+    generateQR();
+  }, [classData?.code, open]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(classData?.code || "MATH101");
@@ -25,10 +52,16 @@ export const QRCodeDialog = ({ open, onOpenChange, classData }: QRCodeDialogProp
   };
 
   const handleDownload = () => {
-    toast({
-      title: "QR Code Downloaded",
-      description: "QR code has been saved to your downloads.",
-    });
+    if (qrCodeUrl) {
+      const link = document.createElement('a');
+      link.download = `${classData?.name || 'class'}-qrcode.png`;
+      link.href = qrCodeUrl;
+      link.click();
+      toast({
+        title: "QR Code Downloaded",
+        description: "QR code has been saved to your downloads.",
+      });
+    }
   };
 
   const handleShare = () => {
@@ -51,18 +84,18 @@ export const QRCodeDialog = ({ open, onOpenChange, classData }: QRCodeDialogProp
         </DialogHeader>
         
         <div className="flex flex-col items-center space-y-4">
-          <Card className="p-6 bg-white">
-            {/* QR Code placeholder - would use a real QR code library in production */}
-            <div className="w-48 h-48 bg-black flex items-center justify-center">
-              <div className="grid grid-cols-8 gap-1">
-                {Array.from({ length: 64 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-2 h-2 ${Math.random() > 0.5 ? 'bg-white' : 'bg-black'}`}
-                  />
-                ))}
+          <Card className="p-6 bg-white flex items-center justify-center">
+            {qrCodeUrl ? (
+              <img 
+                src={qrCodeUrl} 
+                alt="QR Code" 
+                className="w-48 h-48"
+              />
+            ) : (
+              <div className="w-48 h-48 flex items-center justify-center text-muted-foreground">
+                Loading QR Code...
               </div>
-            </div>
+            )}
           </Card>
 
           <div className="text-center">
