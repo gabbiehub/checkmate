@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Html5Qrcode } from "html5-qrcode";
+import jsQR from "jsqr";
 
 interface JoinClassDialogProps {
   open: boolean;
@@ -130,7 +131,24 @@ export const JoinClassDialog = ({ open, onOpenChange, onClassJoined }: JoinClass
   };
 
   const startCameraScanning = async () => {
+    // Check if we're on HTTPS or localhost
+    const isSecureContext = window.isSecureContext;
+    
+    if (!isSecureContext) {
+      toast({
+        title: "Camera Unavailable",
+        description: "Camera access requires HTTPS. Please use the 'Upload Image' option instead.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsScanning(true);
+
     try {
+      // Wait for DOM to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const html5QrCode = new Html5Qrcode("qr-reader");
       qrCodeRef.current = html5QrCode;
 
@@ -147,12 +165,12 @@ export const JoinClassDialog = ({ open, onOpenChange, onClassJoined }: JoinClass
           // Ignore scanning errors (they happen continuously while scanning)
         }
       );
-
-      setIsScanning(true);
     } catch (error) {
+      setIsScanning(false);
+      console.error("Camera error:", error);
       toast({
         title: "Camera Error",
-        description: "Unable to access camera. Please check permissions.",
+        description: "Unable to access camera. Please check permissions or try uploading an image.",
         variant: "destructive"
       });
     }
@@ -173,14 +191,52 @@ export const JoinClassDialog = ({ open, onOpenChange, onClassJoined }: JoinClass
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsJoining(true);
+    
     try {
-      const html5QrCode = new Html5Qrcode("qr-reader");
-      const decodedText = await html5QrCode.scanFile(file, true);
-      await processScannedCode(decodedText);
+      // Create image element
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
+      }
+
+      // Load image
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+
+      // Draw to canvas
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      // Get image data
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Scan for QR code
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
+
+      // Clean up
+      URL.revokeObjectURL(img.src);
+
+      if (code && code.data) {
+        await processScannedCode(code.data);
+      } else {
+        throw new Error('No QR code found in image');
+      }
     } catch (error) {
+      console.error("File scan error:", error);
+      setIsJoining(false);
       toast({
         title: "Scan Error",
-        description: "Unable to read QR code from image.",
+        description: "Unable to read QR code from image. Make sure the image contains a clear QR code.",
         variant: "destructive"
       });
     }
@@ -233,14 +289,14 @@ export const JoinClassDialog = ({ open, onOpenChange, onClassJoined }: JoinClass
           
           <TabsContent value="qr" className="space-y-4">
             <div className="flex flex-col items-center space-y-4">
-              <div 
-                id="qr-reader" 
-                className="w-full max-w-sm rounded-lg overflow-hidden"
-                style={{ display: isScanning ? 'block' : 'none' }}
-              />
-              
-              {!isScanning && (
-                <div className="w-full max-w-sm h-64 border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
+              {isScanning ? (
+                <div 
+                  id="qr-reader" 
+                  className="w-full rounded-lg overflow-hidden bg-black"
+                  style={{ minHeight: '300px', maxWidth: '100%' }}
+                />
+              ) : (
+                <div className="w-full h-64 border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
                   <div className="text-center">
                     <QrCode className="w-12 h-12 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
@@ -249,6 +305,9 @@ export const JoinClassDialog = ({ open, onOpenChange, onClassJoined }: JoinClass
                   </div>
                 </div>
               )}
+              
+              {/* Hidden element for file scanning */}
+              <div id="qr-reader-file" style={{ display: 'none' }} />
               
               <div className="flex gap-2 w-full">
                 {!isScanning ? (
