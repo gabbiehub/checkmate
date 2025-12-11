@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, BookOpen, Clock, Users, AlertCircle, GraduationCap } from "lucide-react";
+import { CalendarIcon, BookOpen, Clock, Users, AlertCircle, GraduationCap, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 
 interface AddEventDialogProps {
   open: boolean;
@@ -35,6 +36,8 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
     eventType: "other",
     classType: "",
     eventScope: "class", // "class" or "personal"
+    scheduleNotification: false,
+    notificationMinutesBefore: "60",
   });
 
   const createEvent = useMutation(api.eventsAndReminders.createEvent);
@@ -49,7 +52,18 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
     user?.role === 'student' && user ? { studentId: user.userId } : "skip"
   );
 
+  // Get classes where user is a beadle
+  const beadleClasses = useQuery(
+    api.eventsAndReminders.getBeadleClasses,
+    user?.role === 'student' && user ? { userId: user.userId } : "skip"
+  );
+
+  // Combine classes based on user role
   const userClasses = user?.role === 'teacher' ? teacherClasses : studentClasses;
+  const canCreateClassEvents = user?.role === 'teacher' || (beadleClasses && beadleClasses.length > 0);
+  
+  // Classes available for class-wide events (teacher: all classes, student/beadle: only beadle classes)
+  const classEventClasses = user?.role === 'teacher' ? teacherClasses : beadleClasses;
 
   // Update classId when preSelectedClassId changes or dialog opens
   useEffect(() => {
@@ -58,12 +72,29 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
     }
   }, [open, preSelectedClassId]);
 
+  // Set default event scope based on user capabilities
+  useEffect(() => {
+    if (open) {
+      if (user?.role === 'student' && !canCreateClassEvents) {
+        setFormData(prev => ({ ...prev, eventScope: 'personal' }));
+      }
+    }
+  }, [open, user?.role, canCreateClassEvents]);
+
   const eventTypes = [
     { value: "exam", label: "Exam", icon: GraduationCap },
     { value: "activity", label: "Activity", icon: BookOpen },
     { value: "class", label: "Class Session", icon: Users },
     { value: "deadline", label: "Deadline", icon: AlertCircle },
     { value: "other", label: "Other", icon: Clock }
+  ];
+
+  const notificationOptions = [
+    { value: "15", label: "15 minutes before" },
+    { value: "30", label: "30 minutes before" },
+    { value: "60", label: "1 hour before" },
+    { value: "120", label: "2 hours before" },
+    { value: "1440", label: "1 day before" },
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,8 +109,9 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
       return;
     }
 
-    // For class-wide events (teacher), classId is required
-    if (user.role === 'teacher' && formData.eventScope === 'class' && !formData.classId) {
+    // For class-wide events, classId is required
+    const isClassEvent = formData.eventScope === 'class' && canCreateClassEvents;
+    if (isClassEvent && !formData.classId) {
       toast({
         title: "Error",
         description: "Please select a class for class-wide events.",
@@ -91,7 +123,7 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
     setIsSubmitting(true);
 
     try {
-      const isPersonal = user.role === 'student' || formData.eventScope === 'personal';
+      const isPersonal = !isClassEvent;
       
       await createEvent({
         title: formData.title.trim(),
@@ -103,13 +135,18 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
         classId: formData.classId ? formData.classId as any : undefined,
         createdBy: user.userId,
         isPersonal,
+        scheduleNotification: isClassEvent && formData.scheduleNotification,
+        notificationMinutesBefore: formData.scheduleNotification ? parseInt(formData.notificationMinutesBefore) : undefined,
       });
 
       const scopeText = isPersonal ? "personal event" : "class event";
+      const notificationText = formData.scheduleNotification && !isPersonal 
+        ? " Students will be notified." 
+        : "";
       
       toast({
         title: "Event Created",
-        description: `Your ${scopeText} has been added to the calendar for ${format(date, "MMM dd, yyyy")}`,
+        description: `Your ${scopeText} has been added to the calendar for ${format(date, "MMM dd, yyyy")}.${notificationText}`,
       });
       
       onOpenChange(false);
@@ -134,13 +171,19 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
       classId: preSelectedClassId || "",
       eventType: "other",
       classType: "",
-      eventScope: "class",
+      eventScope: canCreateClassEvents ? "class" : "personal",
+      scheduleNotification: false,
+      notificationMinutesBefore: "60",
     });
     setDate(undefined);
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: string, value: string | boolean) => {
+    if (field === "scheduleNotification") {
+      setFormData(prev => ({ ...prev, scheduleNotification: value === true || value === "true" }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   return (
@@ -204,17 +247,40 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
             </div>
           )}
 
-          {(user?.role === 'teacher' && formData.eventScope === 'class') || user?.role === 'student' ? (
+          {user?.role === 'student' && canCreateClassEvents && (
+            <div className="space-y-2">
+              <Label>Event Scope</Label>
+              <RadioGroup value={formData.eventScope} onValueChange={(value) => handleInputChange("eventScope", value)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="class" id="class-beadle" />
+                  <Label htmlFor="class-beadle" className="font-normal cursor-pointer">
+                    Class-wide (visible to all classmates)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="personal" id="personal-beadle" />
+                  <Label htmlFor="personal-beadle" className="font-normal cursor-pointer">
+                    Personal (only I can see)
+                  </Label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">
+                As a class beadle, you can create events visible to your classmates.
+              </p>
+            </div>
+          )}
+
+          {((canCreateClassEvents && formData.eventScope === 'class') || (user?.role === 'student' && formData.eventScope === 'personal')) && (
             <div className="space-y-2">
               <Label htmlFor="class">
-                {user?.role === 'teacher' ? 'Class *' : 'Related Class (Optional)'}
+                {formData.eventScope === 'class' ? 'Class *' : 'Related Class (Optional)'}
               </Label>
               {preSelectedClassId ? (
                 // Show read-only class name when pre-selected
                 <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
                   <Users className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm">
-                    {userClasses?.find((cls: any) => cls._id === preSelectedClassId)?.name || "Selected Class"}
+                    {(formData.eventScope === 'class' ? classEventClasses : userClasses)?.find((cls: any) => cls._id === preSelectedClassId)?.name || "Selected Class"}
                   </span>
                 </div>
               ) : (
@@ -222,28 +288,33 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
                 <Select 
                   value={formData.classId} 
                   onValueChange={(value) => handleInputChange("classId", value)}
-                  required={user?.role === 'teacher' && formData.eventScope === 'class'}
+                  required={formData.eventScope === 'class'}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a class" />
                   </SelectTrigger>
                   <SelectContent>
-                    {userClasses && userClasses.length > 0 ? (
-                      userClasses.map((cls: any) => (
-                        <SelectItem key={cls._id} value={cls._id}>
-                          {cls.name}
+                    {(() => {
+                      const classes = formData.eventScope === 'class' ? classEventClasses : userClasses;
+                      return classes && classes.length > 0 ? (
+                        classes.map((cls: any) => (
+                          <SelectItem key={cls._id} value={cls._id}>
+                            {cls.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-classes" disabled>
+                          {formData.eventScope === 'class' 
+                            ? "No classes available (you must be a beadle)" 
+                            : "No classes available"}
                         </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="no-classes" disabled>
-                        No classes available
-                      </SelectItem>
-                    )}
+                      );
+                    })()}
                   </SelectContent>
                 </Select>
               )}
             </div>
-          ) : null}
+          )}
 
           {formData.eventType === 'class' && (
             <div className="space-y-2">
@@ -309,6 +380,49 @@ export const AddEventDialog = ({ open, onOpenChange, classId: preSelectedClassId
               rows={3}
             />
           </div>
+
+          {/* Notification scheduling - only for class-wide events */}
+          {formData.eventScope === 'class' && formData.classId && (
+            <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-muted-foreground" />
+                  <Label htmlFor="notification" className="font-medium">
+                    Notify Students
+                  </Label>
+                </div>
+                <Switch
+                  id="notification"
+                  checked={formData.scheduleNotification}
+                  onCheckedChange={(checked) => handleInputChange("scheduleNotification", checked)}
+                />
+              </div>
+              
+              {formData.scheduleNotification && (
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Send notification</Label>
+                  <Select 
+                    value={formData.notificationMinutesBefore} 
+                    onValueChange={(value) => handleInputChange("notificationMinutesBefore", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {notificationOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    All students in this class will receive a push notification.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2 pt-4">
             <Button 

@@ -22,7 +22,9 @@ export default defineSchema({
     office: v.optional(v.string()),
   })
     .index("by_email", ["email"])
-    .index("by_role", ["role"]),  classes: defineTable({
+    .index("by_role", ["role"]),
+
+  classes: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
     teacherId: v.id("users"),
@@ -67,7 +69,9 @@ export default defineSchema({
   })
     .index("by_class", ["classId"])
     .index("by_student", ["studentId"])
-    .index("by_class_and_date", ["classId", "date"]),  events: defineTable({
+    .index("by_class_and_date", ["classId", "date"]),
+
+  events: defineTable({
     classId: v.optional(v.id("classes")), // Optional for personal events
     title: v.string(),
     description: v.optional(v.string()),
@@ -92,6 +96,7 @@ export default defineSchema({
     .index("by_class", ["classId"])
     .index("by_date", ["date"])
     .index("by_creator", ["createdBy"]),
+
   reminders: defineTable({
     userId: v.id("users"),
     classId: v.optional(v.id("classes")), // For class-wide reminders
@@ -136,4 +141,42 @@ export default defineSchema({
     createdBy: v.id("users"),
   })
     .index("by_class", ["classId"]),
+
+  // Scheduled notifications for events and reminders
+  scheduledNotifications: defineTable({
+    eventId: v.optional(v.id("events")),
+    reminderId: v.optional(v.id("reminders")),
+    classId: v.id("classes"),
+    title: v.string(),
+    body: v.string(),
+    scheduledFor: v.number(), // Unix timestamp when notification should be sent
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("failed"),
+      v.literal("cancelled")
+    ),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    sentAt: v.optional(v.number()),
+    targetStudentIds: v.optional(v.array(v.id("users"))), // Specific students, or all class members if not set
+  })
+    .index("by_class", ["classId"])
+    .index("by_status", ["status"])
+    .index("by_scheduled_time", ["scheduledFor"])
+    .index("by_event", ["eventId"])
+    .index("by_reminder", ["reminderId"]),
+
+  // Push notification subscriptions (for FCM/web push)
+  pushSubscriptions: defineTable({
+    userId: v.id("users"),
+    endpoint: v.string(), // Push service endpoint
+    keys: v.object({
+      p256dh: v.string(),
+      auth: v.string(),
+    }),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_endpoint", ["endpoint"]),
 });

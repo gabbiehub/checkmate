@@ -11,6 +11,7 @@
 import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
 import type * as classes from "../classes.js";
+import type * as crons from "../crons.js";
 import type * as eventsAndReminders from "../eventsAndReminders.js";
 import type * as seatPlans from "../seatPlans.js";
 import type * as users from "../users.js";
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   attendance: typeof attendance;
   auth: typeof auth;
   classes: typeof classes;
+  crons: typeof crons;
   eventsAndReminders: typeof eventsAndReminders;
   seatPlans: typeof seatPlans;
   users: typeof users;

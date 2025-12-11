@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Bell, Clock, Users, BookOpen, X } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +34,8 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
     reminderTime: "",
     recipients: "me",
     classId: "",
+    scheduleNotification: false,
+    notificationMinutesBefore: "60",
   });
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -42,9 +45,27 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
     api.classes.getTeacherClasses,
     user?.role === "teacher" ? { teacherId: user.userId } : "skip"
   );
+
+  // Get classes where user is a beadle
+  const beadleClasses = useQuery(
+    api.eventsAndReminders.getBeadleClasses,
+    user?.role === "student" ? { userId: user.userId } : "skip"
+  );
   
   // Mutation to create reminder
   const createReminder = useMutation(api.eventsAndReminders.createReminder);
+
+  // Determine available classes for class-wide reminders
+  const availableClasses = user?.role === "teacher" ? teacherClasses : beadleClasses;
+  const canCreateClassWideReminders = user?.role === "teacher" || (beadleClasses && beadleClasses.length > 0);
+
+  const notificationOptions = [
+    { value: "15", label: "15 minutes before" },
+    { value: "30", label: "30 minutes before" },
+    { value: "60", label: "1 hour before" },
+    { value: "120", label: "2 hours before" },
+    { value: "1440", label: "1 day before" },
+  ];
   
   const reminderTypes = [
     { value: "assignment", label: "Assignment Due", icon: BookOpen },
@@ -85,6 +106,17 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
       });
       return;
     }
+
+    // Validate class selection for class-wide reminders
+    const isClassWide = formData.recipients === "class" || formData.recipients === "beadles";
+    if (isClassWide && !formData.classId) {
+      toast({
+        title: "Error",
+        description: "Please select a class for class-wide reminders.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsSubmitting(true);
     
@@ -92,8 +124,6 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
       // Format the date as ISO string
       const dueDate = formData.reminderDate.toISOString().split('T')[0];
       
-      // Determine if it's class-wide
-      const isClassWide = formData.recipients === "class" || formData.recipients === "beadles";
       const classId = isClassWide && formData.classId ? formData.classId as any : undefined;
       
       // Build description with tags and type
@@ -120,16 +150,22 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
         title: formData.title.trim(),
         description: fullDescription.trim() || undefined,
         dueDate,
+        dueTime: formData.reminderTime || undefined,
         isClassWide,
+        scheduleNotification: isClassWide && formData.scheduleNotification,
+        notificationMinutesBefore: formData.scheduleNotification ? parseInt(formData.notificationMinutesBefore) : undefined,
       });
       
       const recipientText = isClassWide 
         ? `for ${formData.recipients === "class" ? "entire class" : "class beadles"}`
         : "";
+      const notificationText = isClassWide && formData.scheduleNotification 
+        ? " Students will be notified." 
+        : "";
       
       toast({
         title: "Reminder Created",
-        description: `Your reminder has been scheduled for ${format(formData.reminderDate, "MMM dd, yyyy")} ${recipientText}`,
+        description: `Your reminder has been scheduled for ${format(formData.reminderDate, "MMM dd, yyyy")} ${recipientText}.${notificationText}`,
       });
       
       onOpenChange(false);
@@ -156,12 +192,18 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
       reminderTime: "",
       recipients: "me",
       classId: "",
+      scheduleNotification: false,
+      notificationMinutesBefore: "60",
     });
     setSelectedTags([]);
   };
 
-  const handleInputChange = (field: string, value: string | Date | undefined) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: string, value: string | Date | boolean | undefined) => {
+    if (field === "scheduleNotification") {
+      setFormData(prev => ({ ...prev, scheduleNotification: value === true }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   const addTag = (tag: string) => {
@@ -262,25 +304,32 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="class">Related Class (Optional)</Label>
+            <Label htmlFor="class">Related Class {(formData.recipients === "class" || formData.recipients === "beadles") ? "*" : "(Optional)"}</Label>
             <Select value={formData.classId} onValueChange={(value) => handleInputChange("classId", value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a class" />
               </SelectTrigger>
               <SelectContent>
-                {teacherClasses && teacherClasses.length > 0 ? (
-                  teacherClasses.map((cls) => (
+                {availableClasses && availableClasses.length > 0 ? (
+                  availableClasses.map((cls) => (
                     <SelectItem key={cls._id} value={cls._id}>
                       {cls.name}
                     </SelectItem>
                   ))
                 ) : (
                   <SelectItem value="none" disabled>
-                    No classes available
+                    {user?.role === "student" 
+                      ? "No classes available (you must be a beadle)" 
+                      : "No classes available"}
                   </SelectItem>
                 )}
               </SelectContent>
             </Select>
+            {user?.role === "student" && canCreateClassWideReminders && (
+              <p className="text-xs text-muted-foreground">
+                As a class beadle, you can create reminders for your classmates.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -330,18 +379,69 @@ export const AddReminderDialog = ({ open, onOpenChange }: AddReminderDialogProps
 
           <div className="space-y-2">
             <Label htmlFor="recipients">Send To</Label>
-            <Select value={formData.recipients} onValueChange={(value) => handleInputChange("recipients", value)}>
+            <Select 
+              value={formData.recipients} 
+              onValueChange={(value) => handleInputChange("recipients", value)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="me">Just Me</SelectItem>
-                <SelectItem value="class">Entire Class</SelectItem>
-                <SelectItem value="beadles">Class Beadles</SelectItem>
-                <SelectItem value="custom">Custom Recipients</SelectItem>
+                {canCreateClassWideReminders && (
+                  <>
+                    <SelectItem value="class">Entire Class</SelectItem>
+                    <SelectItem value="beadles">Class Beadles Only</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
+
+          {/* Notification scheduling - only for class-wide reminders */}
+          {(formData.recipients === "class" || formData.recipients === "beadles") && formData.classId && (
+            <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-muted-foreground" />
+                  <Label htmlFor="notification-reminder" className="font-medium">
+                    Send Push Notification
+                  </Label>
+                </div>
+                <Switch
+                  id="notification-reminder"
+                  checked={formData.scheduleNotification}
+                  onCheckedChange={(checked) => handleInputChange("scheduleNotification", checked)}
+                />
+              </div>
+              
+              {formData.scheduleNotification && (
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Send notification</Label>
+                  <Select 
+                    value={formData.notificationMinutesBefore} 
+                    onValueChange={(value) => handleInputChange("notificationMinutesBefore", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {notificationOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.recipients === "class" 
+                      ? "All students in this class will receive a push notification."
+                      : "Class beadles will receive a push notification."}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2 pt-4">
             <Button 
