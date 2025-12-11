@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as classes from "../classes.js";
 import type * as eventsAndReminders from "../eventsAndReminders.js";
+import type * as seatPlans from "../seatPlans.js";
 import type * as users from "../users.js";
 
 import type {
@@ -23,6 +24,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   classes: typeof classes;
   eventsAndReminders: typeof eventsAndReminders;
+  seatPlans: typeof seatPlans;
   users: typeof users;
 }>;
 

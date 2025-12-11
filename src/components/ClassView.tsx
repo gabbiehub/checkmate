@@ -22,6 +22,7 @@ import {
 import { SeatingChart } from "./SeatingChart";
 import { StudentList } from "./StudentList";
 import { ClassSettingsDialog } from "./ClassSettingsDialog";
+import { BeadleManagement } from "./BeadleManagement";
 import { QRCodeDialog } from "./QRCodeDialog";
 import { AddReminderDialog } from "./AddReminderDialog";
 import { AddEventDialog } from "./AddEventDialog";
@@ -292,11 +293,12 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
       {/* Content Tabs */}
       <div className="px-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-4 w-full bg-muted">
+          <TabsList className="grid grid-cols-5 w-full bg-muted">
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="seating">Seating</TabsTrigger>
             <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsTrigger value="beadles">Beadles</TabsTrigger>
           </TabsList>
 
           <TabsContent value="attendance" className="space-y-4">
@@ -558,6 +560,10 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
               </Badge>
             </div>
             <StudentList classId={classId as Id<"classes">} />
+          </TabsContent>
+
+          <TabsContent value="beadles" className="space-y-4">
+            <BeadleManagement classId={classId} />
           </TabsContent>
         </Tabs>
       </div>

@@ -118,4 +118,22 @@ export default defineSchema({
     .index("by_student", ["studentId"])
     .index("by_class_and_position", ["classId", "row", "col"])
     .index("by_class_and_student", ["classId", "studentId"]),
+
+  // Seat plans - stores seat arrangement metadata
+  seatPlans: defineTable({
+    classId: v.id("classes"),
+    rows: v.number(),
+    columns: v.number(),
+    seats: v.array(v.object({
+      x: v.number(), // Column position
+      y: v.number(), // Row position
+      studentId: v.optional(v.id("users")),
+      label: v.optional(v.string()), // Seat label like "A1", "B2"
+      isEmpty: v.optional(v.boolean()), // For marking empty/disabled seats
+    })),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_class", ["classId"]),
 });
