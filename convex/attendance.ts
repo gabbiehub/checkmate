@@ -490,3 +490,322 @@ export const syncOfflineRecords = action({
     return result;
   },
 });
+
+/**
+ * Get comprehensive class attendance analytics
+ * Provides aggregated summaries for beadle dashboard
+ */
+export const getClassAnalytics = query({
+  args: {
+    classId: v.id("classes"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify the class exists
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    // Verify user has permission (teacher or beadle)
+    const isTeacher = cls.teacherId === args.userId;
+    const beadleMembership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.userId)
+      )
+      .first();
+    const isBeadle = beadleMembership?.isBeadle === true;
+
+    if (!isTeacher && !isBeadle) {
+      throw new Error("Only the class teacher or beadles can view attendance analytics");
+    }
+
+    // Get all class members
+    const classMembers = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class", (q) => q.eq("classId", args.classId))
+      .collect();
+
+    // Get all attendance records for this class
+    const allAttendance = await ctx.db
+      .query("attendance")
+      .withIndex("by_class", (q) => q.eq("classId", args.classId))
+      .collect();
+
+    // Get student details
+    const studentIds = classMembers.map((m) => m.studentId);
+    const students = await Promise.all(
+      studentIds.map(async (id) => {
+        const student = await ctx.db.get(id);
+        return student;
+      })
+    );
+
+    const studentMap = new Map(
+      students.filter(Boolean).map((s) => [s!._id, s!])
+    );
+
+    // Calculate overall class statistics
+    const totalStudents = classMembers.length;
+    const uniqueDates = [...new Set(allAttendance.map((a) => a.date))].sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
+    const totalSessions = uniqueDates.length;
+
+    // Overall attendance breakdown
+    const overallStats = {
+      present: 0,
+      late: 0,
+      absent: 0,
+      excused: 0,
+      total: allAttendance.length,
+    };
+
+    for (const record of allAttendance) {
+      overallStats[record.status]++;
+    }
+
+    // Calculate percentages
+    const overallPercentages = {
+      presentRate:
+        overallStats.total > 0
+          ? Math.round(((overallStats.present + overallStats.late) / overallStats.total) * 100)
+          : 0,
+      absentRate:
+        overallStats.total > 0
+          ? Math.round((overallStats.absent / overallStats.total) * 100)
+          : 0,
+      lateRate:
+        overallStats.total > 0
+          ? Math.round((overallStats.late / overallStats.total) * 100)
+          : 0,
+      excusedRate:
+        overallStats.total > 0
+          ? Math.round((overallStats.excused / overallStats.total) * 100)
+          : 0,
+    };
+
+    // Per-student analytics
+    const studentAnalytics = studentIds.map((studentId) => {
+      const student = studentMap.get(studentId);
+      const studentRecords = allAttendance.filter((a) => a.studentId === studentId);
+
+      const stats = {
+        present: 0,
+        late: 0,
+        absent: 0,
+        excused: 0,
+        total: studentRecords.length,
+      };
+
+      for (const record of studentRecords) {
+        stats[record.status]++;
+      }
+
+      const attendanceRate =
+        stats.total > 0
+          ? Math.round(((stats.present + stats.late) / stats.total) * 100)
+          : 0;
+
+      // Determine risk level based on absences
+      let riskLevel: "low" | "medium" | "high" | "none" = "none";
+      const absencePercentage = stats.total > 0 ? (stats.absent / stats.total) * 100 : 0;
+      if (absencePercentage >= 30) {
+        riskLevel = "high";
+      } else if (absencePercentage >= 20) {
+        riskLevel = "medium";
+      } else if (absencePercentage >= 10) {
+        riskLevel = "low";
+      }
+
+      // Get recent attendance trend (last 5 sessions)
+      const recentDates = uniqueDates.slice(0, 5);
+      const recentRecords = studentRecords.filter((r) =>
+        recentDates.includes(r.date)
+      );
+      const recentPresentCount = recentRecords.filter(
+        (r) => r.status === "present" || r.status === "late"
+      ).length;
+      const recentTrend =
+        recentRecords.length > 0
+          ? Math.round((recentPresentCount / recentRecords.length) * 100)
+          : null;
+
+      // Streak calculation (consecutive present days)
+      let currentStreak = 0;
+      for (const date of uniqueDates) {
+        const record = studentRecords.find((r) => r.date === date);
+        if (record && (record.status === "present" || record.status === "late")) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+
+      return {
+        studentId,
+        studentName: student?.name || "Unknown Student",
+        studentEmail: student?.email,
+        studentIdNumber: student?.idNumber,
+        stats,
+        attendanceRate,
+        riskLevel,
+        recentTrend,
+        currentStreak,
+        lastAttendance: studentRecords[0]?.date || null,
+      };
+    });
+
+    // Sort by attendance rate (ascending) to show worst performers first
+    studentAnalytics.sort((a, b) => a.attendanceRate - b.attendanceRate);
+
+    // Students at risk (more than 3 absences or >20% absence rate)
+    const atRiskStudents = studentAnalytics.filter(
+      (s) => s.riskLevel === "high" || s.riskLevel === "medium"
+    );
+
+    // Daily breakdown for the last 7 sessions
+    const dailyBreakdown = uniqueDates.slice(0, 7).map((date) => {
+      const dayRecords = allAttendance.filter((a) => a.date === date);
+      const dayStats = {
+        present: dayRecords.filter((r) => r.status === "present").length,
+        late: dayRecords.filter((r) => r.status === "late").length,
+        absent: dayRecords.filter((r) => r.status === "absent").length,
+        excused: dayRecords.filter((r) => r.status === "excused").length,
+        total: dayRecords.length,
+      };
+      return {
+        date,
+        ...dayStats,
+        attendanceRate:
+          dayStats.total > 0
+            ? Math.round(((dayStats.present + dayStats.late) / dayStats.total) * 100)
+            : 0,
+      };
+    });
+
+    // Calculate weekly trend
+    const weeklyTrend =
+      dailyBreakdown.length >= 2
+        ? dailyBreakdown[0].attendanceRate - dailyBreakdown[dailyBreakdown.length - 1].attendanceRate
+        : 0;
+
+    // Today's summary
+    const today = new Date().toISOString().split("T")[0];
+    const todayRecords = allAttendance.filter((a) => a.date === today);
+    const todayStats = {
+      present: todayRecords.filter((r) => r.status === "present").length,
+      late: todayRecords.filter((r) => r.status === "late").length,
+      absent: todayRecords.filter((r) => r.status === "absent").length,
+      excused: todayRecords.filter((r) => r.status === "excused").length,
+      unmarked: totalStudents - todayRecords.length,
+      total: todayRecords.length,
+      attendanceRate:
+        todayRecords.length > 0
+          ? Math.round(
+              ((todayRecords.filter((r) => r.status === "present").length +
+                todayRecords.filter((r) => r.status === "late").length) /
+                todayRecords.length) *
+                100
+            )
+          : 0,
+    };
+
+    return {
+      className: cls.name,
+      classCode: cls.code,
+      totalStudents,
+      totalSessions,
+      overallStats,
+      overallPercentages,
+      todayStats,
+      dailyBreakdown,
+      weeklyTrend,
+      studentAnalytics,
+      atRiskStudents,
+      lastUpdated: Date.now(),
+    };
+  },
+});
+
+/**
+ * Get a specific student's attendance history for a class
+ */
+export const getStudentAttendanceHistory = query({
+  args: {
+    classId: v.id("classes"),
+    studentId: v.id("users"),
+    requestedBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify the class exists
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    // Verify user has permission (teacher, beadle, or the student themselves)
+    const isTeacher = cls.teacherId === args.requestedBy;
+    const isSelf = args.requestedBy === args.studentId;
+    const beadleMembership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.requestedBy)
+      )
+      .first();
+    const isBeadle = beadleMembership?.isBeadle === true;
+
+    if (!isTeacher && !isBeadle && !isSelf) {
+      throw new Error("You don't have permission to view this student's attendance");
+    }
+
+    // Get student info
+    const student = await ctx.db.get(args.studentId);
+    if (!student) {
+      throw new Error("Student not found");
+    }
+
+    // Get all attendance records for this student in this class
+    const records = await ctx.db
+      .query("attendance")
+      .withIndex("by_class", (q) => q.eq("classId", args.classId))
+      .filter((q) => q.eq(q.field("studentId"), args.studentId))
+      .collect();
+
+    // Sort by date descending
+    records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Calculate statistics
+    const stats = {
+      present: records.filter((r) => r.status === "present").length,
+      late: records.filter((r) => r.status === "late").length,
+      absent: records.filter((r) => r.status === "absent").length,
+      excused: records.filter((r) => r.status === "excused").length,
+      total: records.length,
+    };
+
+    const attendanceRate =
+      stats.total > 0
+        ? Math.round(((stats.present + stats.late) / stats.total) * 100)
+        : 0;
+
+    return {
+      student: {
+        id: student._id,
+        name: student.name,
+        email: student.email,
+        idNumber: student.idNumber,
+      },
+      records: records.map((r) => ({
+        id: r._id,
+        date: r.date,
+        status: r.status,
+        notes: r.notes,
+        createdAt: r.createdAt,
+      })),
+      stats,
+      attendanceRate,
+    };
+  },
+});

@@ -17,7 +17,8 @@ import {
   Loader2,
   Edit,
   Trash2,
-  Copy
+  Copy,
+  BarChart3
 } from "lucide-react";
 import { SeatingChart } from "./SeatingChart";
 import { StudentList } from "./StudentList";
@@ -28,6 +29,7 @@ import { AddReminderDialog } from "./AddReminderDialog";
 import { AddEventDialog } from "./AddEventDialog";
 import { EditEventDialog } from "./EditEventDialog";
 import { AttendanceView } from "./AttendanceView";
+import { BeadleAnalyticsDashboard } from "./BeadleAnalyticsDashboard";
 import { Id } from "../../convex/_generated/dataModel";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -295,8 +297,9 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
       {/* Content Tabs */}
       <div className="px-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-5 w-full bg-muted">
+          <TabsList className="grid grid-cols-6 w-full bg-muted">
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="seating">Seating</TabsTrigger>
             <TabsTrigger value="students">Students</TabsTrigger>
@@ -493,6 +496,11 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
             </Card>
               </>
             )}
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics" className="space-y-4">
+            <BeadleAnalyticsDashboard classId={classId as Id<"classes">} />
           </TabsContent>
 
           <TabsContent value="events" className="space-y-4">
