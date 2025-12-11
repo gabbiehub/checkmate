@@ -1,5 +1,7 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, action, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 // Get all events for a user (teacher or student)
 export const getUserEvents = query({
@@ -197,6 +199,8 @@ export const createEvent = mutation({
     )),
     createdBy: v.id("users"),
     isPersonal: v.boolean(),
+    scheduleNotification: v.optional(v.boolean()), // Whether to schedule a push notification
+    notificationMinutesBefore: v.optional(v.number()), // Minutes before event to send notification
   },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.createdBy);
@@ -211,11 +215,24 @@ export const createEvent = mutation({
         throw new Error("Class not found");
       }
       
-      // Only teachers can create class-wide events
-      if (user.role !== "teacher" || cls.teacherId !== args.createdBy) {
-        throw new Error("Only the class teacher can create class-wide events");
+      // Check if user is teacher
+      const isTeacher = user.role === "teacher" && cls.teacherId === args.createdBy;
+      
+      // Check if user is beadle
+      const beadleMembership = await ctx.db
+        .query("classMembers")
+        .withIndex("by_class_and_student", (q) =>
+          q.eq("classId", args.classId!).eq("studentId", args.createdBy)
+        )
+        .first();
+      const isBeadle = beadleMembership?.isBeadle === true;
+      
+      if (!isTeacher && !isBeadle) {
+        throw new Error("Only the class teacher or beadles can create class-wide events");
       }
-    }    return await ctx.db.insert("events", {
+    }
+
+    const eventId = await ctx.db.insert("events", {
       classId: args.classId,
       title: args.title,
       description: args.description,
@@ -224,9 +241,34 @@ export const createEvent = mutation({
       eventType: args.eventType,
       classType: args.classType,
       createdBy: args.createdBy,
-      isPersonal: args.isPersonal || false, // Default to false if not provided
+      isPersonal: args.isPersonal || false,
       createdAt: Date.now(),
     });
+
+    // Schedule notification if requested
+    if (args.scheduleNotification && args.classId && !args.isPersonal) {
+      const minutesBefore = args.notificationMinutesBefore ?? 60; // Default 1 hour before
+      
+      // Calculate notification time
+      const eventDateTime = new Date(`${args.date}T${args.time || "09:00"}`);
+      const notificationTime = eventDateTime.getTime() - (minutesBefore * 60 * 1000);
+      
+      // Only schedule if notification time is in the future
+      if (notificationTime > Date.now()) {
+        await ctx.db.insert("scheduledNotifications", {
+          eventId,
+          classId: args.classId,
+          title: `Upcoming: ${args.title}`,
+          body: args.description || `Event scheduled for ${args.date}${args.time ? ` at ${args.time}` : ""}`,
+          scheduledFor: notificationTime,
+          status: "pending",
+          createdBy: args.createdBy,
+          createdAt: Date.now(),
+        });
+      }
+    }
+
+    return eventId;
   },
 });
 
@@ -363,7 +405,10 @@ export const createReminder = mutation({
     title: v.string(),
     description: v.optional(v.string()),
     dueDate: v.string(),
+    dueTime: v.optional(v.string()),
     isClassWide: v.boolean(),
+    scheduleNotification: v.optional(v.boolean()),
+    notificationMinutesBefore: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId);
@@ -371,26 +416,63 @@ export const createReminder = mutation({
       throw new Error("User not found");
     }
 
-    // If creating a class-wide reminder, verify teacher permission
+    // If creating a class-wide reminder, verify teacher or beadle permission
     if (args.isClassWide && args.classId) {
       const cls = await ctx.db.get(args.classId);
       if (!cls) {
         throw new Error("Class not found");
       }
       
-      if (user.role !== "teacher" || cls.teacherId !== args.userId) {
-        throw new Error("Only the class teacher can create class-wide reminders");
+      // Check if user is teacher
+      const isTeacher = user.role === "teacher" && cls.teacherId === args.userId;
+      
+      // Check if user is beadle
+      const beadleMembership = await ctx.db
+        .query("classMembers")
+        .withIndex("by_class_and_student", (q) =>
+          q.eq("classId", args.classId!).eq("studentId", args.userId)
+        )
+        .first();
+      const isBeadle = beadleMembership?.isBeadle === true;
+      
+      if (!isTeacher && !isBeadle) {
+        throw new Error("Only the class teacher or beadles can create class-wide reminders");
       }
-    }    return await ctx.db.insert("reminders", {
+    }
+
+    const reminderId = await ctx.db.insert("reminders", {
       userId: args.userId,
       classId: args.classId,
       title: args.title,
       description: args.description,
       dueDate: args.dueDate,
       completed: false,
-      isClassWide: args.isClassWide || false, // Default to false if not provided
+      isClassWide: args.isClassWide || false,
       createdAt: Date.now(),
     });
+
+    // Schedule notification if requested
+    if (args.scheduleNotification && args.classId && args.isClassWide) {
+      const minutesBefore = args.notificationMinutesBefore ?? 60;
+      
+      const reminderDateTime = new Date(`${args.dueDate}T${args.dueTime || "09:00"}`);
+      const notificationTime = reminderDateTime.getTime() - (minutesBefore * 60 * 1000);
+      
+      if (notificationTime > Date.now()) {
+        await ctx.db.insert("scheduledNotifications", {
+          reminderId,
+          classId: args.classId,
+          title: `Reminder: ${args.title}`,
+          body: args.description || `Due on ${args.dueDate}${args.dueTime ? ` at ${args.dueTime}` : ""}`,
+          scheduledFor: notificationTime,
+          status: "pending",
+          createdBy: args.userId,
+          createdAt: Date.now(),
+        });
+      }
+    }
+
+    return reminderId;
   },
 });
 
@@ -408,5 +490,280 @@ export const toggleReminder = mutation({
     await ctx.db.patch(args.reminderId, {
       completed: !reminder.completed,
     });
+  },
+});
+
+// Get pending scheduled notifications
+export const getPendingNotifications = query({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const notifications = await ctx.db
+      .query("scheduledNotifications")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .collect();
+
+    // Return notifications that should be sent (scheduledFor <= now)
+    return notifications.filter((n) => n.scheduledFor <= now);
+  },
+});
+
+// Get scheduled notifications for a class
+export const getClassScheduledNotifications = query({
+  args: {
+    classId: v.id("classes"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify the class exists
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    // Verify user has permission (teacher or beadle)
+    const isTeacher = cls.teacherId === args.userId;
+    const beadleMembership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.userId)
+      )
+      .first();
+    const isBeadle = beadleMembership?.isBeadle === true;
+
+    if (!isTeacher && !isBeadle) {
+      throw new Error("Only the class teacher or beadles can view scheduled notifications");
+    }
+
+    const notifications = await ctx.db
+      .query("scheduledNotifications")
+      .withIndex("by_class", (q) => q.eq("classId", args.classId))
+      .collect();
+
+    // Enrich with creator info
+    const enrichedNotifications = await Promise.all(
+      notifications.map(async (notification) => {
+        const creator = await ctx.db.get(notification.createdBy);
+        return {
+          ...notification,
+          creatorName: creator?.name || "Unknown",
+        };
+      })
+    );
+
+    // Sort by scheduled time, upcoming first
+    return enrichedNotifications.sort((a, b) => a.scheduledFor - b.scheduledFor);
+  },
+});
+
+// Cancel a scheduled notification
+export const cancelScheduledNotification = mutation({
+  args: {
+    notificationId: v.id("scheduledNotifications"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const notification = await ctx.db.get(args.notificationId);
+    if (!notification) {
+      throw new Error("Notification not found");
+    }
+
+    const cls = await ctx.db.get(notification.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    // Verify user has permission (teacher, beadle, or the creator)
+    const isTeacher = cls.teacherId === args.userId;
+    const isCreator = notification.createdBy === args.userId;
+    const beadleMembership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", notification.classId).eq("studentId", args.userId)
+      )
+      .first();
+    const isBeadle = beadleMembership?.isBeadle === true;
+
+    if (!isTeacher && !isBeadle && !isCreator) {
+      throw new Error("You don't have permission to cancel this notification");
+    }
+
+    await ctx.db.patch(args.notificationId, {
+      status: "cancelled",
+    });
+
+    return { success: true };
+  },
+});
+
+// Internal mutation to mark notification as sent
+export const markNotificationSent = internalMutation({
+  args: {
+    notificationId: v.id("scheduledNotifications"),
+    success: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.notificationId, {
+      status: args.success ? "sent" : "failed",
+      sentAt: Date.now(),
+    });
+  },
+});
+
+// Internal mutation to process notifications
+export const processScheduledNotifications = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const pendingNotifications = await ctx.db
+      .query("scheduledNotifications")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .collect();
+
+    const toProcess = pendingNotifications.filter((n) => n.scheduledFor <= now);
+    
+    const results: Array<{ notificationId: Id<"scheduledNotifications">; processed: boolean }> = [];
+    
+    for (const notification of toProcess) {
+      // Get all class members to notify
+      const classMembers = await ctx.db
+        .query("classMembers")
+        .withIndex("by_class", (q) => q.eq("classId", notification.classId))
+        .collect();
+
+      const targetIds = notification.targetStudentIds || classMembers.map((m) => m.studentId);
+
+      // Mark as sent (in a real implementation, this would trigger FCM)
+      await ctx.db.patch(notification._id, {
+        status: "sent",
+        sentAt: Date.now(),
+      });
+
+      results.push({ notificationId: notification._id, processed: true });
+    }
+
+    return {
+      processed: results.length,
+      results,
+    };
+  },
+});
+
+// Action to send push notifications via external service (FCM)
+// This would be called by a scheduled job or cron
+export const sendPushNotifications = action({
+  args: {},
+  handler: async (ctx): Promise<{ processed: number; results: Array<{ notificationId: Id<"scheduledNotifications">; processed: boolean }> }> => {
+    // Process pending notifications
+    const result = await ctx.runMutation(internal.eventsAndReminders.processScheduledNotifications, {}) as { processed: number; results: Array<{ notificationId: Id<"scheduledNotifications">; processed: boolean }> };
+    
+    // In a real implementation, you would:
+    // 1. Get push subscriptions for target users
+    // 2. Call FCM or web-push API to send notifications
+    // 3. Update notification status based on delivery results
+    
+    // Example FCM integration (requires setup):
+    // const fcmResponse = await fetch('https://fcm.googleapis.com/fcm/send', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Authorization': `key=${process.env.FCM_SERVER_KEY}`,
+    //     'Content-Type': 'application/json',
+    //   },
+    //   body: JSON.stringify({
+    //     notification: { title, body },
+    //     to: fcmToken,
+    //   }),
+    // });
+
+    return result;
+  },
+});
+
+// Subscribe to push notifications
+export const subscribeToPushNotifications = mutation({
+  args: {
+    userId: v.id("users"),
+    endpoint: v.string(),
+    keys: v.object({
+      p256dh: v.string(),
+      auth: v.string(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    // Check if subscription already exists
+    const existing = await ctx.db
+      .query("pushSubscriptions")
+      .withIndex("by_endpoint", (q) => q.eq("endpoint", args.endpoint))
+      .first();
+
+    if (existing) {
+      // Update existing subscription
+      await ctx.db.patch(existing._id, {
+        userId: args.userId,
+        keys: args.keys,
+      });
+      return existing._id;
+    }
+
+    // Create new subscription
+    return await ctx.db.insert("pushSubscriptions", {
+      userId: args.userId,
+      endpoint: args.endpoint,
+      keys: args.keys,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+// Unsubscribe from push notifications
+export const unsubscribeFromPushNotifications = mutation({
+  args: {
+    endpoint: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db
+      .query("pushSubscriptions")
+      .withIndex("by_endpoint", (q) => q.eq("endpoint", args.endpoint))
+      .first();
+
+    if (subscription) {
+      await ctx.db.delete(subscription._id);
+    }
+
+    return { success: true };
+  },
+});
+
+// Get classes where user is a beadle
+export const getBeadleClasses = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const memberships = await ctx.db
+      .query("classMembers")
+      .withIndex("by_student", (q) => q.eq("studentId", args.userId))
+      .collect();
+
+    const beadleMemberships = memberships.filter((m) => m.isBeadle === true);
+
+    const classes = await Promise.all(
+      beadleMemberships.map(async (m) => {
+        const cls = await ctx.db.get(m.classId);
+        if (!cls) return null;
+
+        const memberCount = await ctx.db
+          .query("classMembers")
+          .withIndex("by_class", (q) => q.eq("classId", cls._id))
+          .collect();
+
+        return {
+          ...cls,
+          studentCount: memberCount.length,
+        };
+      })
+    );
+
+    return classes.filter((c) => c !== null);
   },
 });

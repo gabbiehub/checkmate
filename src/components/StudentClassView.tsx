@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Calendar, Users, TrendingUp, Clock, MapPin, CheckCircle, XCircle, AlertCircle, Armchair, User, Bell, UserCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, Users, TrendingUp, Clock, MapPin, CheckCircle, XCircle, AlertCircle, Armchair, User, Bell, UserCheck, Loader2, BarChart3 } from "lucide-react";
+import { BeadleAnalyticsDashboard } from "./BeadleAnalyticsDashboard";
 import { StudentSeatingChart } from "./StudentSeatingChart";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation } from "convex/react";
@@ -280,9 +281,10 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className={cn("grid w-full", isBeadle ? "grid-cols-4" : "grid-cols-3")}>
+          <TabsList className={cn("grid w-full", isBeadle ? "grid-cols-5" : "grid-cols-3")}>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             {isBeadle && <TabsTrigger value="attendance">Attendance</TabsTrigger>}
+            {isBeadle && <TabsTrigger value="analytics">Analytics</TabsTrigger>}
             <TabsTrigger value="seating">My Seat</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
@@ -491,6 +493,13 @@ export const StudentClassView = ({ classId, onBack }: StudentClassViewProps) => 
                   ))}
                 </CardContent>
               </Card>
+            </TabsContent>
+          )}
+
+          {/* Beadle Analytics Tab */}
+          {isBeadle && (
+            <TabsContent value="analytics" className="space-y-4">
+              <BeadleAnalyticsDashboard classId={classId as Id<"classes">} />
             </TabsContent>
           )}
           

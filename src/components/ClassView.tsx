@@ -17,15 +17,19 @@ import {
   Loader2,
   Edit,
   Trash2,
-  Copy
+  Copy,
+  BarChart3
 } from "lucide-react";
 import { SeatingChart } from "./SeatingChart";
 import { StudentList } from "./StudentList";
 import { ClassSettingsDialog } from "./ClassSettingsDialog";
+import { BeadleManagement } from "./BeadleManagement";
 import { QRCodeDialog } from "./QRCodeDialog";
 import { AddReminderDialog } from "./AddReminderDialog";
 import { AddEventDialog } from "./AddEventDialog";
 import { EditEventDialog } from "./EditEventDialog";
+import { AttendanceView } from "./AttendanceView";
+import { BeadleAnalyticsDashboard } from "./BeadleAnalyticsDashboard";
 import { Id } from "../../convex/_generated/dataModel";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -48,6 +52,7 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showEditEvent, setShowEditEvent] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [attendanceMode, setAttendanceMode] = useState<"list" | "seat">("seat");
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
   
@@ -292,29 +297,54 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
       {/* Content Tabs */}
       <div className="px-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-4 w-full bg-muted">
+          <TabsList className="grid grid-cols-6 w-full bg-muted">
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
             <TabsTrigger value="seating">Seating</TabsTrigger>
             <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsTrigger value="beadles">Beadles</TabsTrigger>
           </TabsList>
 
           <TabsContent value="attendance" className="space-y-4">
+            {/* Mode Toggle */}
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-foreground">Mark Attendance - {format(new Date(), 'MMM dd, yyyy')}</h3>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={attendanceMode === "seat" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setAttendanceMode("seat")}
+                >
+                  Seat View
+                </Button>
+                <Button
+                  variant={attendanceMode === "list" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setAttendanceMode("list")}
+                >
+                  List View
+                </Button>
+              </div>
             </div>
 
-            {/* Quick Mark All Buttons */}
-            <Card className="p-4">
-              <h4 className="font-medium mb-3 text-sm">Quick Actions</h4>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleMarkAll("present")}
-                  disabled={isMarkingAll}
-                  className="border-green-200 hover:bg-green-50"
-                >
+            {attendanceMode === "seat" ? (
+              /* Seat-based Attendance View */
+              <AttendanceView classId={classId as Id<"classes">} />
+            ) : (
+              /* List-based Attendance View */
+              <>
+                {/* Quick Mark All Buttons */}
+                <Card className="p-4">
+                  <h4 className="font-medium mb-3 text-sm">Quick Actions</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleMarkAll("present")}
+                      disabled={isMarkingAll}
+                      className="border-green-200 hover:bg-green-50"
+                    >
                   {isMarkingAll ? (
                     <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                   ) : (
@@ -464,6 +494,13 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
                 ))}
               </div>
             </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics" className="space-y-4">
+            <BeadleAnalyticsDashboard classId={classId as Id<"classes">} />
           </TabsContent>
 
           <TabsContent value="events" className="space-y-4">
@@ -544,9 +581,6 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
           </TabsContent>
 
           <TabsContent value="seating" className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-foreground">Classroom Layout</h3>
-            </div>
             <SeatingChart classId={classId as Id<"classes">} />
           </TabsContent>
 
@@ -558,6 +592,10 @@ export const ClassView = ({ classId, onBack }: ClassViewProps) => {
               </Badge>
             </div>
             <StudentList classId={classId as Id<"classes">} />
+          </TabsContent>
+
+          <TabsContent value="beadles" className="space-y-4">
+            <BeadleManagement classId={classId} />
           </TabsContent>
         </Tabs>
       </div>

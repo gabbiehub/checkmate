@@ -1113,3 +1113,107 @@ export const isUserBeadle = query({
     return membership?.isBeadle === true;
   },
 });
+
+// Assign beadle role to a student (alias for addBeadle)
+export const assignBeadle = mutation({
+  args: {
+    classId: v.id("classes"),
+    studentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Get the class to verify it exists and get teacherId
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    // Find the membership record
+    const membership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.studentId)
+      )
+      .first();
+
+    if (!membership) {
+      throw new Error("Student is not a member of this class");
+    }
+
+    // Check if already a beadle
+    if (membership.isBeadle) {
+      throw new Error("Student is already a beadle for this class");
+    }
+
+    // Update the membership to mark as beadle
+    await ctx.db.patch(membership._id, {
+      isBeadle: true,
+    });
+
+    return { success: true, message: "Student has been assigned as beadle" };
+  },
+});
+
+// Revoke beadle access from a student (alias for removeBeadle)
+export const revokeBeadleAccess = mutation({
+  args: {
+    classId: v.id("classes"),
+    studentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Get the class to verify it exists
+    const cls = await ctx.db.get(args.classId);
+    if (!cls) {
+      throw new Error("Class not found");
+    }
+
+    // Find the membership record
+    const membership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.studentId)
+      )
+      .first();
+
+    if (!membership) {
+      throw new Error("Student is not a member of this class");
+    }
+
+    // Check if the student is actually a beadle
+    if (!membership.isBeadle) {
+      throw new Error("Student is not a beadle for this class");
+    }
+
+    // Update the membership to remove beadle status
+    await ctx.db.patch(membership._id, {
+      isBeadle: false,
+    });
+
+    return { success: true, message: "Beadle access has been revoked" };
+  },
+});
+
+// Get student's role/membership info for a class
+export const getStudentClassRole = query({
+  args: {
+    classId: v.id("classes"),
+    studentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const membership = await ctx.db
+      .query("classMembers")
+      .withIndex("by_class_and_student", (q) =>
+        q.eq("classId", args.classId).eq("studentId", args.studentId)
+      )
+      .first();
+
+    if (!membership) {
+      return null;
+    }
+
+    return {
+      isMember: true,
+      isBeadle: membership.isBeadle === true,
+      joinedAt: membership.joinedAt,
+    };
+  },
+});
